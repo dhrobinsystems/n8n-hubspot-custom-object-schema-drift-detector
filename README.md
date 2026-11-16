@@ -67,6 +67,8 @@ I built this workflow as a scheduled audit against a versioned master template. 
 
 ## 2. Architecture and Data Flow
 
+![HubSpot Custom Object Schema Drift Detector Workflow Overview](https://raw.githubusercontent.com/dhrobinsystems/n8n-hubspot-custom-object-schema-drift-detector/main/workflow-overview.png)
+
 ```mermaid
 flowchart LR
     SCH[Governance Audit Schedule<br/>weekdays 05:40 UTC] --> CFG
