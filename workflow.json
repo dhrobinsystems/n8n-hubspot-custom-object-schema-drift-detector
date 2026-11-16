@@ -1,0 +1,2063 @@
+{
+  "name": "HubSpot Custom Object Schema Drift Detector (dhRobin Systems)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## n8n-hubspot-custom-object-schema-drift-detector\n**dhRobin Systems** · Scheduled governance audit: expected master template (versioned URL, env JSON or fixture) vs actual HubSpot custom object schemas and standard object properties → deletions, type mutations, required-flag changes, option removals, missing associations, unmanaged properties and objects → **critical / warning / info** → Slack governance report with links to property settings → run summary webhook → audit.\n\n**Read-only.** The workflow never changes HubSpot.\n**Safe by default:** `SANDBOX_MODE=true` (synthetic schemas, zero API calls), `DRY_RUN=true`, `SEND_SLACK_ALERTS=false`.",
+        "height": 340,
+        "width": 720,
+        "color": 5
+      },
+      "id": "7a002f81-4d6c-594d-a2a9-acc14c0bf56f",
+      "name": "Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Severity\n- **critical**: object or property deleted/archived, type changed, enum option removed, required flag removed, association missing\n- **warning**: field type, unique flag, primary display, new required field, hidden option, unmanaged object, locked-object additions, unmanaged volume, unreadable object\n- **info**: labels, new options, unmanaged properties, extra associations\nOverride any rule with `SEVERITY_OVERRIDES`.",
+        "height": 260,
+        "width": 520,
+        "color": 6
+      },
+      "id": "7451e202-04c9-56b3-a983-6f915b51428f",
+      "name": "Severity Notice",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Pinned synthetic payloads\nPinned: template URL fetch, custom object schemas, standard object properties, Slack, run summary webhook.\nPins apply to **manual executions only**. Unpin a node before a manual live test.",
+        "height": 180,
+        "width": 420,
+        "color": 3
+      },
+      "id": "459b03a5-2385-5ee1-bda5-194121d93ca1",
+      "name": "Pinned Data Notice",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        900,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "40 5 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "5f61fcfc-269a-51e1-91b6-a79183262d3e",
+      "name": "Governance Audit Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -600,
+        120
+      ],
+      "notes": "Weekdays 05:40 UTC. For a weekly audit use 40 5 * * 1.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {},
+      "id": "dc84827a-0f59-54ed-a548-59faff6c36d6",
+      "name": "Manual Test Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a6cbe72d-3c5a-5b80-a696-6e7caf7a5119",
+              "name": "config.sandboxMode",
+              "value": "={{ String($env.SANDBOX_MODE ?? 'true').trim().toLowerCase() !== 'false' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "d2202d77-ee67-5d04-8e75-37cb3a041f4c",
+              "name": "config.dryRun",
+              "value": "={{ String($env.DRY_RUN ?? 'true').trim().toLowerCase() !== 'false' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "e7d209cb-c1ed-5c9d-a506-de1a5ada9a77",
+              "name": "config.sendSlackAlerts",
+              "value": "={{ !(String($env.SANDBOX_MODE ?? 'true').trim().toLowerCase() !== 'false') && !(String($env.DRY_RUN ?? 'true').trim().toLowerCase() !== 'false') && String($env.SEND_SLACK_ALERTS ?? 'false').trim().toLowerCase() === 'true' && Boolean(String($env.SLACK_GOVERNANCE_WEBHOOK_URL ?? '').trim()) }}",
+              "type": "boolean"
+            },
+            {
+              "id": "8f3c09cf-04e2-5883-852d-a0768a99f531",
+              "name": "config.webhookEnabled",
+              "value": "={{ !(String($env.SANDBOX_MODE ?? 'true').trim().toLowerCase() !== 'false') && !(String($env.DRY_RUN ?? 'true').trim().toLowerCase() !== 'false') && Boolean(String($env.ALERT_WEBHOOK_URL ?? '').trim()) }}",
+              "type": "boolean"
+            },
+            {
+              "id": "77ac2e66-64c8-50c5-94dd-481c937378a9",
+              "name": "config.notifyOnEveryRun",
+              "value": "={{ String($env.NOTIFY_ON_EVERY_RUN ?? 'false').trim().toLowerCase() === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "8a0bbb6c-e039-5762-9839-2ecadda9cf1a",
+              "name": "config.templateUrlSet",
+              "value": "={{ Boolean(String($env.EXPECTED_SCHEMA_TEMPLATE_URL ?? '').trim()) }}",
+              "type": "boolean"
+            },
+            {
+              "id": "e557c03b-a81a-523d-88df-17bca4bafcd2",
+              "name": "config.templateInline",
+              "value": "={{ (() => { const t = String($env.EXPECTED_SCHEMA_TEMPLATE_JSON ?? '').trim(); if (!t) return null; try { const j = JSON.parse(t); return j && typeof j === 'object' && !Array.isArray(j) ? j : { __invalid: true }; } catch (e) { return { __invalid: true }; } })() }}",
+              "type": "object"
+            },
+            {
+              "id": "5c337c55-45bd-5540-9194-5c2c4802617d",
+              "name": "config.alertMinSeverity",
+              "value": "={{ ['critical', 'warning', 'info'].includes(String($env.ALERT_MIN_SEVERITY ?? 'warning').trim().toLowerCase()) ? String($env.ALERT_MIN_SEVERITY ?? 'warning').trim().toLowerCase() : 'warning' }}",
+              "type": "string"
+            },
+            {
+              "id": "223896f4-c8c2-50cb-a12c-7a4026117edf",
+              "name": "config.criticalFailThreshold",
+              "value": "={{ Math.min(1000, Math.max(1, Number.isFinite(parseFloat($env.CRITICAL_FAIL_THRESHOLD)) ? Math.round(parseFloat($env.CRITICAL_FAIL_THRESHOLD)) : 1)) }}",
+              "type": "number"
+            },
+            {
+              "id": "ca589604-9559-5912-9b9a-d9b4b48daeec",
+              "name": "config.unmanagedPropertyWarnCount",
+              "value": "={{ Math.min(1000, Math.max(0, Number.isFinite(parseFloat($env.UNMANAGED_PROPERTY_WARN_COUNT)) ? Math.round(parseFloat($env.UNMANAGED_PROPERTY_WARN_COUNT)) : 5)) }}",
+              "type": "number"
+            },
+            {
+              "id": "4a153284-4ec9-51b3-b60d-48772cb72d71",
+              "name": "config.massLossRatio",
+              "value": "={{ Math.min(1, Math.max(0.1, Number.isFinite(parseFloat($env.MASS_LOSS_RATIO)) ? parseFloat($env.MASS_LOSS_RATIO) : 0.8)) }}",
+              "type": "number"
+            },
+            {
+              "id": "2a04d4b8-528e-5091-8cf1-6962b63ca453",
+              "name": "config.severityOverrides",
+              "value": "={{ (() => { const t = String($env.SEVERITY_OVERRIDES ?? '').trim(); if (!t) return null; try { const j = JSON.parse(t); return j && typeof j === 'object' && !Array.isArray(j) ? j : {}; } catch (e) { return {}; } })() }}",
+              "type": "object"
+            },
+            {
+              "id": "b26f4491-e028-5609-8830-c8e1a263d4e7",
+              "name": "config.ignorePropertyPatterns",
+              "value": "={{ String($env.IGNORE_PROPERTY_PATTERNS ?? 'hs_*').toLowerCase().split(',').map(x => x.trim()).filter(Boolean) }}",
+              "type": "array"
+            },
+            {
+              "id": "3a977c9a-7a84-51d9-b295-aeea75d10b30",
+              "name": "config.ignoreObjects",
+              "value": "={{ String($env.IGNORE_OBJECTS ?? '').toLowerCase().split(',').map(x => x.trim()).filter(Boolean) }}",
+              "type": "array"
+            },
+            {
+              "id": "684fd148-e35b-598f-9f63-ec7054e6aa19",
+              "name": "config.includeInfoInSlack",
+              "value": "={{ String($env.INCLUDE_INFO_IN_SLACK ?? 'false').trim().toLowerCase() === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "b7febc21-7b5d-50f5-b07b-626a613c9d52",
+              "name": "config.maxLinesPerObject",
+              "value": "={{ Math.min(30, Math.max(1, Number.isFinite(parseFloat($env.MAX_LINES_PER_OBJECT)) ? Math.round(parseFloat($env.MAX_LINES_PER_OBJECT)) : 8)) }}",
+              "type": "number"
+            },
+            {
+              "id": "d6397b9b-cb8c-54f8-92fe-84730ee6c373",
+              "name": "config.suppressRepeatAlerts",
+              "value": "={{ String($env.SUPPRESS_REPEAT_ALERTS ?? 'true').trim().toLowerCase() !== 'false' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "1ad46f4c-9717-5a60-98b4-8fb66dea80b8",
+              "name": "config.reminderHours",
+              "value": "={{ Math.min(8760, Math.max(1, Number.isFinite(parseFloat($env.REMINDER_HOURS)) ? Math.round(parseFloat($env.REMINDER_HOURS)) : 168)) }}",
+              "type": "number"
+            },
+            {
+              "id": "0a7ef026-8044-5512-a639-332b0dc5b1fa",
+              "name": "config.alertOnResolved",
+              "value": "={{ String($env.ALERT_ON_RESOLVED ?? 'true').trim().toLowerCase() !== 'false' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "c641ae14-b0f7-5ac8-8e24-71300380cdcd",
+              "name": "config.alertOnAuditFailure",
+              "value": "={{ String($env.ALERT_ON_AUDIT_FAILURE ?? 'true').trim().toLowerCase() !== 'false' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "0054fc01-ba78-5d9f-b7e1-eec7d3e2a603",
+              "name": "config.showChangedBy",
+              "value": "={{ String($env.SHOW_CHANGED_BY ?? 'false').trim().toLowerCase() === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "1e86cc4f-e7c5-50c4-a8e3-bcc4129a016d",
+              "name": "config.generateTemplateSnapshot",
+              "value": "={{ String($env.GENERATE_TEMPLATE_SNAPSHOT ?? 'false').trim().toLowerCase() === 'true' }}",
+              "type": "boolean"
+            },
+            {
+              "id": "ac36877c-9f64-5cd2-9248-c0506b84eb7c",
+              "name": "config.portalId",
+              "value": "={{ /^\\d+$/.test(String($env.HUBSPOT_PORTAL_ID ?? '').trim()) ? String($env.HUBSPOT_PORTAL_ID).trim() : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "de05655c-986b-5378-b785-9da7c63aec17",
+              "name": "config.appHost",
+              "value": "={{ (h => /^[a-z0-9.-]+\\.hubspot\\.com$/.test(h) ? h : 'app.hubspot.com')(String($env.HUBSPOT_APP_HOST ?? 'app.hubspot.com').trim().toLowerCase()) }}",
+              "type": "string"
+            },
+            {
+              "id": "419ae2bf-0189-524c-b2df-68ebbe071a2e",
+              "name": "config.propertySettingsUrlTemplate",
+              "value": "={{ (t => /^https:\\/\\//.test(t) ? t : 'https://{appHost}/property-settings/{portalId}/properties?type={objectTypeId}')(String($env.HUBSPOT_PROPERTY_SETTINGS_URL_TEMPLATE ?? '').trim()) }}",
+              "type": "string"
+            },
+            {
+              "id": "53c9f6af-f635-5705-86d8-496df5d12268",
+              "name": "config.dataModelUrl",
+              "value": "={{ (t => /^https:\\/\\//.test(t) ? t : '')(String($env.HUBSPOT_DATA_MODEL_URL ?? '').trim()) }}",
+              "type": "string"
+            },
+            {
+              "id": "45baec37-c90e-5032-a6c9-f0f92fefde08",
+              "name": "config.hubspotBaseUrl",
+              "value": "={{ String($env.HUBSPOT_API_BASE_URL ?? 'https://api.hubapi.com').trim().replace(/\\/+$/, '') || 'https://api.hubapi.com' }}",
+              "type": "string"
+            },
+            {
+              "id": "a4d1fd7e-7810-5575-adba-4683fd82f1cb",
+              "name": "config.runId",
+              "value": "={{ $execution.id }}",
+              "type": "string"
+            },
+            {
+              "id": "967817a8-42ed-584a-8e7c-9ac5c36aa031",
+              "name": "config.executionMode",
+              "value": "={{ $execution.mode }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "82b44725-531e-57b0-b670-4f9c682828eb",
+      "name": "Config & Safety Gate",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -380,
+        200
+      ],
+      "notes": "Typed, non-secret configuration under config.*. Flags record only whether a secret or URL is set.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "fbd6133d-7235-5156-a15e-a7971a1bd9e7",
+              "leftValue": "={{ $('Config & Safety Gate').first().json.config.sandboxMode }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "78f790e0-ca17-50cf-9995-1472fcdc2807",
+      "name": "Sandbox Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Mock Schema Context (SANDBOX_MODE=true)\n// Synthetic expected template + drifted actual schemas from\n// sample-payloads/hubspot-schema-definitions.json. No HubSpot calls.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst FIXTURE = {\"_meta\":{\"notice\":\"Synthetic data only. Portal, object type IDs, user IDs and property names are fictional placeholders.\",\"portalId\":\"99000001\",\"expectedDrift\":{\"critical\":8,\"warning\":9,\"info\":11},\"relativeTimes\":\"_relative.updatedHoursAgo is resolved to an ISO updatedAt at run time.\"},\"expectedTemplate\":{\"templateVersion\":\"2026.11.1\",\"managedBy\":\"RevOps Governance (synthetic)\",\"description\":\"Synthetic master template for the dhRobin Systems schema drift detector sandbox.\",\"allowUnmanagedObjects\":false,\"customObjects\":{\"project\":{\"labels\":{\"singular\":\"Project\",\"plural\":\"Projects\"},\"primaryDisplayProperty\":\"project_name\",\"requiredProperties\":[\"project_name\",\"project_stage\"],\"allowUnmanagedProperties\":true,\"properties\":{\"project_name\":{\"type\":\"string\",\"fieldType\":\"text\",\"label\":\"Project name\"},\"project_stage\":{\"type\":\"enumeration\",\"fieldType\":\"select\",\"options\":[\"planning\",\"in_progress\",\"on_hold\",\"completed\"]},\"budget_amount\":{\"type\":\"number\",\"fieldType\":\"number\"},\"go_live_date\":{\"type\":\"date\",\"fieldType\":\"date\"},\"delivery_owner_email\":{\"type\":\"string\",\"fieldType\":\"text\"},\"project_code\":{\"type\":\"string\",\"fieldType\":\"text\",\"hasUniqueValue\":true},\"health_score\":{\"type\":\"number\",\"fieldType\":\"number\"}},\"associations\":[{\"to\":\"companies\"},{\"to\":\"contacts\"},{\"to\":\"deals\"},{\"to\":\"contract\"}]},\"contract\":{\"labels\":{\"singular\":\"Contract\",\"plural\":\"Contracts\"},\"primaryDisplayProperty\":\"contract_number\",\"requiredProperties\":[\"contract_number\",\"start_date\"],\"allowUnmanagedProperties\":false,\"properties\":{\"contract_number\":{\"type\":\"string\",\"fieldType\":\"text\",\"hasUniqueValue\":true},\"contract_title\":{\"type\":\"string\",\"fieldType\":\"text\"},\"start_date\":{\"type\":\"date\",\"fieldType\":\"date\"},\"end_date\":{\"type\":\"date\",\"fieldType\":\"date\"},\"contract_value\":{\"type\":\"number\",\"fieldType\":\"number\"},\"renewal_terms\":{\"type\":\"string\",\"fieldType\":\"textarea\"},\"termination_reason\":{\"type\":\"enumeration\",\"fieldType\":\"select\",\"options\":[\"non_payment\",\"convenience\",\"breach\"]}},\"associations\":[{\"to\":\"companies\"},{\"to\":\"deals\"}]},\"asset\":{\"labels\":{\"singular\":\"Asset\",\"plural\":\"Assets\"},\"primaryDisplayProperty\":\"asset_tag\",\"requiredProperties\":[\"asset_tag\"],\"properties\":{\"asset_tag\":{\"type\":\"string\",\"fieldType\":\"text\",\"hasUniqueValue\":true},\"asset_status\":{\"type\":\"enumeration\",\"fieldType\":\"select\",\"options\":[\"active\",\"retired\"]}},\"associations\":[{\"to\":\"companies\"}]}},\"standardObjects\":{\"deals\":{\"allowUnmanagedProperties\":true,\"properties\":{\"arr_amount\":{\"type\":\"number\",\"fieldType\":\"number\"},\"contract_tier\":{\"type\":\"enumeration\",\"fieldType\":\"select\",\"options\":[\"standard\",\"plus\",\"enterprise\"]},\"renewal_date\":{\"type\":\"date\",\"fieldType\":\"date\"},\"deal_source_system\":{\"type\":\"string\",\"fieldType\":\"text\"}}},\"companies\":{\"properties\":{\"customer_tier\":{\"type\":\"enumeration\",\"fieldType\":\"select\",\"options\":[\"smb\",\"growth\",\"enterprise\",\"strategic\"]},\"annual_contract_value\":{\"type\":\"number\",\"fieldType\":\"number\"},\"renewal_date\":{\"type\":\"date\",\"fieldType\":\"date\"}}}}},\"actual\":{\"customObjectSchemas\":{\"results\":[{\"id\":\"9900101\",\"objectTypeId\":\"2-9900101\",\"fullyQualifiedName\":\"p990_project\",\"name\":\"project\",\"labels\":{\"singular\":\"Project\",\"plural\":\"Projects\"},\"primaryDisplayProperty\":\"project_name\",\"secondaryDisplayProperties\":[\"project_stage\"],\"requiredProperties\":[\"project_name\"],\"searchableProperties\":[\"project_name\",\"project_code\"],\"archived\":false,\"createdAt\":\"2025-03-04T09:00:00.000Z\",\"_relative\":{\"updatedHoursAgo\":20},\"properties\":[{\"name\":\"hs_object_id\",\"label\":\"Record ID\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_createdate\",\"label\":\"Create date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_lastmodifieddate\",\"label\":\"Last modified date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"project_name\",\"label\":\"Project title\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":26},\"updatedUserId\":\"71000001\"},{\"name\":\"project_stage\",\"label\":\"Project stage\",\"type\":\"enumeration\",\"fieldType\":\"select\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[{\"label\":\"Planning\",\"value\":\"planning\",\"displayOrder\":0,\"hidden\":false},{\"label\":\"In Progress\",\"value\":\"in_progress\",\"displayOrder\":1,\"hidden\":false},{\"label\":\"Completed\",\"value\":\"completed\",\"displayOrder\":2,\"hidden\":false},{\"label\":\"Cancelled\",\"value\":\"cancelled\",\"displayOrder\":3,\"hidden\":false}],\"_relative\":{\"updatedHoursAgo\":20},\"updatedUserId\":\"71000002\"},{\"name\":\"budget_amount\",\"label\":\"Budget amount\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":20},\"updatedUserId\":\"71000002\"},{\"name\":\"go_live_date\",\"label\":\"Go-live date\",\"type\":\"date\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"project_code\",\"label\":\"Project code\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":20},\"updatedUserId\":\"71000002\"},{\"name\":\"health_score\",\"label\":\"Health score\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"temp_import_batch\",\"label\":\"Temp import batch\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":30},\"updatedUserId\":\"71000003\"},{\"name\":\"legacy_status_copy\",\"label\":\"Legacy status (copy)\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":30},\"updatedUserId\":\"71000003\"}],\"associations\":[{\"id\":\"901\",\"fromObjectTypeId\":\"2-9900101\",\"toObjectTypeId\":\"0-2\",\"name\":\"project_to_company\"},{\"id\":\"902\",\"fromObjectTypeId\":\"2-9900101\",\"toObjectTypeId\":\"0-1\",\"name\":\"project_to_contact\"},{\"id\":\"903\",\"fromObjectTypeId\":\"2-9900101\",\"toObjectTypeId\":\"0-3\",\"name\":\"project_to_deal\"},{\"id\":\"904\",\"fromObjectTypeId\":\"2-9900101\",\"toObjectTypeId\":\"0-5\",\"name\":\"project_to_ticket\"}]},{\"id\":\"9900102\",\"objectTypeId\":\"2-9900102\",\"fullyQualifiedName\":\"p990_contract\",\"name\":\"contract\",\"labels\":{\"singular\":\"Contract\",\"plural\":\"Contracts\"},\"primaryDisplayProperty\":\"contract_title\",\"secondaryDisplayProperties\":[],\"requiredProperties\":[\"contract_number\",\"start_date\",\"signed_by\"],\"searchableProperties\":[\"contract_number\"],\"archived\":false,\"createdAt\":\"2025-05-12T09:00:00.000Z\",\"_relative\":{\"updatedHoursAgo\":44},\"properties\":[{\"name\":\"hs_object_id\",\"label\":\"Record ID\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_createdate\",\"label\":\"Create date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_lastmodifieddate\",\"label\":\"Last modified date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"contract_number\",\"label\":\"Contract number\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":true,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"contract_title\",\"label\":\"Contract title\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"start_date\",\"label\":\"Start date\",\"type\":\"date\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"end_date\",\"label\":\"End date\",\"type\":\"date\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"contract_value\",\"label\":\"Contract value\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"renewal_terms\",\"label\":\"Renewal terms\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":44},\"updatedUserId\":\"71000001\"},{\"name\":\"termination_reason\",\"label\":\"Termination reason\",\"type\":\"enumeration\",\"fieldType\":\"select\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[{\"label\":\"Non Payment\",\"value\":\"non_payment\",\"displayOrder\":0,\"hidden\":false},{\"label\":\"Convenience\",\"value\":\"convenience\",\"displayOrder\":1,\"hidden\":false},{\"label\":\"Breach\",\"value\":\"breach\",\"displayOrder\":2,\"hidden\":false}],\"archived\":true,\"_relative\":{\"updatedHoursAgo\":44},\"updatedUserId\":\"71000001\"},{\"name\":\"signed_by\",\"label\":\"Signed by\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":44},\"updatedUserId\":\"71000001\"},{\"name\":\"notes_misc\",\"label\":\"Misc notes\",\"type\":\"string\",\"fieldType\":\"textarea\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":60},\"updatedUserId\":\"71000003\"}],\"associations\":[{\"id\":\"911\",\"fromObjectTypeId\":\"2-9900102\",\"toObjectTypeId\":\"0-2\",\"name\":\"contract_to_company\"},{\"id\":\"912\",\"fromObjectTypeId\":\"2-9900102\",\"toObjectTypeId\":\"0-3\",\"name\":\"contract_to_deal\"}]},{\"id\":\"9900103\",\"objectTypeId\":\"2-9900103\",\"fullyQualifiedName\":\"p990_vendor_scorecard\",\"name\":\"vendor_scorecard\",\"labels\":{\"singular\":\"Vendor scorecard\",\"plural\":\"Vendor scorecards\"},\"primaryDisplayProperty\":\"vendor_name\",\"requiredProperties\":[\"vendor_name\"],\"searchableProperties\":[],\"archived\":false,\"createdAt\":\"2026-11-14T10:00:00.000Z\",\"_relative\":{\"updatedHoursAgo\":50},\"properties\":[{\"name\":\"hs_object_id\",\"label\":\"Record ID\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_createdate\",\"label\":\"Create date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_lastmodifieddate\",\"label\":\"Last modified date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"vendor_name\",\"label\":\"Vendor name\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":50},\"updatedUserId\":\"71000003\"}],\"associations\":[{\"id\":\"921\",\"fromObjectTypeId\":\"2-9900103\",\"toObjectTypeId\":\"0-2\",\"name\":\"vendor_scorecard_to_company\"}]}]},\"standardObjectProperties\":{\"deals\":{\"results\":[{\"name\":\"dealname\",\"label\":\"Deal name\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"amount\",\"label\":\"Amount\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"closedate\",\"label\":\"Close date\",\"type\":\"datetime\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"hs_object_id\",\"label\":\"Record ID\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"contract_tier\",\"label\":\"Contract tier\",\"type\":\"enumeration\",\"fieldType\":\"select\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[{\"label\":\"Standard\",\"value\":\"standard\",\"displayOrder\":0,\"hidden\":false},{\"label\":\"Plus\",\"value\":\"plus\",\"displayOrder\":1,\"hidden\":true},{\"label\":\"Enterprise\",\"value\":\"enterprise\",\"displayOrder\":2,\"hidden\":false}],\"_relative\":{\"updatedHoursAgo\":70},\"updatedUserId\":\"71000002\"},{\"name\":\"renewal_date\",\"label\":\"Renewal date\",\"type\":\"date\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"deal_source_system\",\"label\":\"Deal source system\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"q3_promo_code\",\"label\":\"Q3 promo code\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":80},\"updatedUserId\":\"71000003\"},{\"name\":\"sdr_notes_tmp\",\"label\":\"Sdr notes tmp\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":82},\"updatedUserId\":\"71000003\"},{\"name\":\"import_batch_id\",\"label\":\"Import batch id\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":90},\"updatedUserId\":\"71000003\"},{\"name\":\"legacy_deal_owner\",\"label\":\"Legacy deal owner\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":95},\"updatedUserId\":\"71000003\"},{\"name\":\"utm_campaign_copy\",\"label\":\"Utm campaign copy\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":99},\"updatedUserId\":\"71000003\"},{\"name\":\"partner_referral_flag\",\"label\":\"Partner referral flag\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[],\"_relative\":{\"updatedHoursAgo\":101},\"updatedUserId\":\"71000003\"}]},\"companies\":{\"results\":[{\"name\":\"name\",\"label\":\"Company name\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"domain\",\"label\":\"Company domain name\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":true,\"calculated\":false,\"formField\":false,\"options\":[]},{\"name\":\"customer_tier\",\"label\":\"Customer tier\",\"type\":\"enumeration\",\"fieldType\":\"select\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[{\"label\":\"Smb\",\"value\":\"smb\",\"displayOrder\":0,\"hidden\":false},{\"label\":\"Growth\",\"value\":\"growth\",\"displayOrder\":1,\"hidden\":false},{\"label\":\"Enterprise\",\"value\":\"enterprise\",\"displayOrder\":2,\"hidden\":false},{\"label\":\"Strategic\",\"value\":\"strategic\",\"displayOrder\":3,\"hidden\":false}]},{\"name\":\"annual_contract_value\",\"label\":\"Annual contract value\",\"type\":\"number\",\"fieldType\":\"number\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"renewal_date\",\"label\":\"Renewal date\",\"type\":\"date\",\"fieldType\":\"date\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"internal_region_code\",\"label\":\"Internal region code\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]},{\"name\":\"legacy_account_id\",\"label\":\"Legacy account ID\",\"type\":\"string\",\"fieldType\":\"text\",\"groupName\":\"custom_information\",\"description\":\"\",\"hasUniqueValue\":false,\"hidden\":false,\"hubspotDefined\":false,\"calculated\":false,\"formField\":true,\"options\":[]}]}}}};\nconst now = Date.now();\nconst resolve = (o) => {\n  const c = JSON.parse(JSON.stringify(o));\n  const h = c._relative?.updatedHoursAgo;\n  if (Number.isFinite(h)) c.updatedAt = new Date(now - h * 3600000).toISOString();\n  delete c._relative;\n  if (Array.isArray(c.properties)) c.properties = c.properties.map(resolve);\n  return c;\n};\nconst std = {};\nfor (const [k, v] of Object.entries(FIXTURE.actual.standardObjectProperties)) std[k] = { properties: v.results.map(resolve), readError: null };\nreturn [{ json: {\n  source: 'fixture', portalId: cfg.portalId || FIXTURE._meta.portalId,\n  template: FIXTURE.expectedTemplate, templateSource: 'fixture', templateErrors: [],\n  actual: { customObjects: FIXTURE.actual.customObjectSchemas.results.map(resolve), standardObjects: std },\n  readErrors: [],\n} }];\n"
+      },
+      "id": "ed678313-4d03-5718-9429-34cc597ef38e",
+      "name": "Mock Schema Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        60,
+        40
+      ],
+      "notes": "sample-payloads/hubspot-schema-definitions.json",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "7f03bc59-4482-503e-ad42-7edb940051b8",
+              "leftValue": "={{ $('Config & Safety Gate').first().json.config.templateUrlSet }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "43ccff29-2035-57cc-aa76-cb00950d499e",
+      "name": "Template URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.EXPECTED_SCHEMA_TEMPLATE_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.SCHEMA_TEMPLATE_AUTH_TOKEN ? 'Bearer ' + $env.SCHEMA_TEMPLATE_AUTH_TOKEN : '' }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/plain"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "c35839f4-edac-5197-9e53-6ed8a5060283",
+      "name": "HTTP: Fetch Expected Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "Versioned template file (e.g. raw file in your Git repo).",
+      "notesInFlow": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Load Expected Template\n// Source order: EXPECTED_SCHEMA_TEMPLATE_URL (fetched as text, parsed here),\n// then EXPECTED_SCHEMA_TEMPLATE_JSON (parsed in Config). Full validation runs in\n// the analysis node; this node only extracts the standard objects to read.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst STD = ['contacts', 'companies', 'deals', 'tickets', 'products', 'line_items', 'quotes'];\nconst errors = [];\nlet raw = null; let source = 'none';\nif (cfg.templateUrlSet) {\n  source = 'url';\n  let r = null;\n  try { r = $('HTTP: Fetch Expected Template').isExecuted ? $('HTTP: Fetch Expected Template').first().json : null; } catch (e) { r = null; }\n  if (!r) errors.push('Template URL fetch returned no response.');\n  else if (r.error) errors.push(`Template URL fetch failed: ${String(r.error.message || r.error).slice(0, 200)}`);\n  else {\n    const text = typeof r.data === 'string' ? r.data : JSON.stringify(r.data ?? r);\n    try { raw = JSON.parse(text); } catch (e) { errors.push('Template URL did not return valid JSON.'); }\n  }\n} else if (cfg.templateInline) {\n  source = 'env';\n  if (cfg.templateInline.__invalid) errors.push('EXPECTED_SCHEMA_TEMPLATE_JSON is not valid JSON.');\n  else raw = cfg.templateInline;\n} else {\n  errors.push('No expected template configured. Set EXPECTED_SCHEMA_TEMPLATE_URL or EXPECTED_SCHEMA_TEMPLATE_JSON.');\n}\nif (!errors.length && (!raw || typeof raw !== 'object' || Array.isArray(raw))) errors.push('Expected template is not a JSON object.');\nconst standardObjects = (!errors.length && raw.standardObjects && typeof raw.standardObjects === 'object')\n  ? [...new Set(Object.keys(raw.standardObjects).map((k) => k.trim().toLowerCase()))].filter((k) => STD.includes(k)) : [];\nreturn [{ json: { template: raw, templateSource: source, templateErrors: errors, valid: errors.length === 0, standardObjects } }];\n"
+      },
+      "id": "377e6626-6f4c-530b-8c8e-1bf3d2de8fae",
+      "name": "Load Expected Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "00bcd636-b75f-59c0-9315-7bd468603785",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8cacc5d1-418b-5e02-b69a-571d1b322384",
+      "name": "Template Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config & Safety Gate').first().json.config.hubspotBaseUrl }}/crm-object-schemas/v3/schemas",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.HUBSPOT_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "includePropertyDefinitions",
+              "value": "true"
+            },
+            {
+              "name": "includeAssociationDefinitions",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "818d34a1-7d75-5324-851d-f07741e37270",
+      "name": "HubSpot: Get Custom Object Schemas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "notes": "Read-only. Scope: crm.schemas.custom.read.",
+      "notesInFlow": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "67702b35-80b3-5f07-a482-aa86f26c7a15",
+              "leftValue": "={{ $('Load Expected Template').first().json.standardObjects.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b64b6e2e-9752-515e-ace2-e088cc77aa01",
+      "name": "Standard Objects?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One item per standard object listed in the template.\nreturn $('Load Expected Template').first().json.standardObjects.map((objectType) => ({ json: { objectType } }));\n"
+      },
+      "id": "62760a24-fa64-5eef-9f64-a114cae56b4d",
+      "name": "Emit Standard Object Reads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config & Safety Gate').first().json.config.hubspotBaseUrl + '/crm/v3/properties/' + $json.objectType }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.HUBSPOT_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 250
+            }
+          }
+        }
+      },
+      "id": "961dc03b-3f23-5ec6-8219-af9aba290ebc",
+      "name": "HubSpot: Get Standard Object Properties",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        140
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "notes": "Read-only. Scopes: crm.schemas.<object>.read.",
+      "notesInFlow": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Assemble Schema Context (live)\n// Joins the template with the custom object schemas and the standard object\n// property lists. A failed read becomes a read error, never an empty schema:\n// an unreadable object must not look like a deleted one.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst L = $('Load Expected Template').first().json;\nconst bad = (j) => !j || j.error || j.status === 'error';\nconst msg = (j) => String(j?.error?.message || j?.message || j?.error || 'no response').slice(0, 200);\nconst readErrors = [];\nlet sch = null;\ntry { sch = $('HubSpot: Get Custom Object Schemas').first().json; } catch (e) { sch = null; }\nlet customObjects = null;\nif (bad(sch)) readErrors.push({ scope: 'custom_objects', message: `Custom object schema read failed: ${msg(sch)}` });\nelse customObjects = Array.isArray(sch.results) ? sch.results : [];\nlet resp = [];\ntry { resp = $('HubSpot: Get Standard Object Properties').isExecuted ? $('HubSpot: Get Standard Object Properties').all() : []; } catch (e) { resp = []; }\nconst standardObjects = {};\nL.standardObjects.forEach((o, i) => {\n  const j = resp[i]?.json;\n  standardObjects[o] = bad(j) ? { properties: null, readError: msg(j) } : { properties: Array.isArray(j.results) ? j.results : [], readError: null };\n});\nreturn [{ json: {\n  source: 'hubspot', portalId: cfg.portalId, template: L.template, templateSource: L.templateSource, templateErrors: L.templateErrors,\n  actual: { customObjects, standardObjects }, readErrors,\n} }];\n"
+      },
+      "id": "8f46dc44-41d9-58de-873f-c9627111357c",
+      "name": "Assemble Schema Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Schema Drift Analysis\n// Compares actual HubSpot custom object schemas and standard object properties\n// with the expected master template. Every finding has a stable key, a rule, a\n// severity (critical / warning / info) and expected vs actual values.\n// Reads, never writes, workflow memory: state is recorded after delivery.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst ctx = $input.first().json;\nconst now = Date.now();\nconst SEV = { ignore: 0, info: 1, warning: 2, critical: 3 };\nconst DEFAULT_SEV = {\n  object_missing: 'critical', object_archived: 'critical', object_unmanaged: 'warning', object_label_changed: 'info',\n  primary_display_changed: 'warning', required_flag_removed: 'critical', required_flag_added: 'warning',\n  property_missing: 'critical', property_archived: 'critical', mass_property_loss: 'critical',\n  property_type_changed: 'critical', property_field_type_changed: 'warning',\n  property_option_removed: 'critical', property_option_hidden: 'warning', property_option_added: 'info', property_option_added_locked: 'warning',\n  property_unique_changed: 'warning', property_label_changed: 'info',\n  property_unmanaged: 'info', property_unmanaged_locked: 'warning', unmanaged_property_volume: 'warning',\n  association_missing: 'critical', association_unmanaged: 'info', object_not_readable: 'warning',\n};\nconst overrides = cfg.severityOverrides && typeof cfg.severityOverrides === 'object' ? cfg.severityOverrides : {};\nconst sevOf = (rule) => { const o = String(overrides[rule] ?? '').trim().toLowerCase(); return SEV[o] !== undefined ? o : DEFAULT_SEV[rule]; };\nconst STD = { contacts: '0-1', companies: '0-2', deals: '0-3', tickets: '0-5', products: '0-7', line_items: '0-8', quotes: '0-14' };\nconst STD_ALIAS = { contact: 'contacts', company: 'companies', deal: 'deals', ticket: 'tickets', product: 'products', line_item: 'line_items', quote: 'quotes' };\nconst STD_LABEL = { contacts: 'Contacts', companies: 'Companies', deals: 'Deals', tickets: 'Tickets', products: 'Products', line_items: 'Line items', quotes: 'Quotes' };\nconst ID_TO_STD = Object.fromEntries(Object.entries(STD).map(([k, v]) => [v, k]));\nconst TYPES = ['string', 'number', 'date', 'datetime', 'enumeration', 'bool', 'phone_number', 'object_coordinates', 'json'];\nconst TYPE_ALIAS = { boolean: 'bool', integer: 'number', decimal: 'number', enum: 'enumeration', phone: 'phone_number' };\nconst norm = (v) => String(v ?? '').trim().toLowerCase();\nconst normType = (t) => { const x = norm(t); return TYPE_ALIAS[x] || x; };\nconst glob = (p) => new RegExp(`^${String(p).replace(/[.+?^${}()|[\\]\\\\]/g, '\\\\$&').replace(/\\*/g, '.*')}$`, 'i');\nconst ignoreProps = (cfg.ignorePropertyPatterns || []).map(glob);\nconst ignoreObjects = (cfg.ignoreObjects || []).map(glob);\nconst isIgnoredProp = (n) => ignoreProps.some((r) => r.test(n));\nconst isIgnoredObj = (...names) => names.filter(Boolean).some((n) => ignoreObjects.some((r) => r.test(n)));\n\n// ── Memory (read only) ───────────────────────────────────────────────────────\nconst persist = !cfg.sandboxMode && !['manual', 'test'].includes(cfg.executionMode);\nconst mem = persist ? ($getWorkflowStaticData('global').schemaDrift || {}) : {};\nconst prev = mem.findings && typeof mem.findings === 'object' ? mem.findings : {};\n\nconst base = { generatedAt: new Date(now).toISOString(), portalId: ctx.portalId || '', source: ctx.source, templateSource: ctx.templateSource, persist };\n\n// ── Template validation ──────────────────────────────────────────────────────\nconst T = ctx.template;\nconst templateErrors = [...(ctx.templateErrors || [])];\nconst templateWarnings = [];\nif (!templateErrors.length) {\n  if (!T || typeof T !== 'object' || Array.isArray(T)) templateErrors.push('Expected template is not a JSON object.');\n  else if (!T.customObjects && !T.standardObjects) templateErrors.push('Expected template has neither customObjects nor standardObjects.');\n  else for (const k of ['customObjects', 'standardObjects']) if (T[k] !== undefined && (typeof T[k] !== 'object' || Array.isArray(T[k]))) templateErrors.push(`Template ${k} must be an object keyed by object name.`);\n}\nconst failure = (kind, messages) => [{ json: { ...base, status: 'error', auditError: { kind, messages }, templateVersion: T?.templateVersion || null, templateWarnings, objects: [], findings: [], resolved: [],\n  counts: { critical: 0, warning: 0, info: 0, total: 0, alertable: 0, new: 0, persisting: 0, resolved: 0, objectsAudited: 0 },\n  alert: { needed: cfg.alertOnAuditFailure, reason: 'audit_failure' }, carryOver: Object.keys(prev), notes: [] } }];\nif (templateErrors.length) return failure('template', templateErrors);\nif (T.customObjects && Object.keys(T.customObjects).length && !Array.isArray(ctx.actual?.customObjects)) {\n  return failure('hubspot_read', (ctx.readErrors || []).map((e) => e.message).concat(ctx.readErrors?.length ? [] : ['Custom object schemas were not returned.']));\n}\n\n// ── Normalise template entries ───────────────────────────────────────────────\nfunction normTemplate(key, def, isStd) {\n  const d = def && typeof def === 'object' ? def : {};\n  const P = d.properties && typeof d.properties === 'object' ? d.properties : {};\n  const entries = Array.isArray(P) ? P.map((p) => [p?.name, p]) : Object.entries(P);\n  const required = new Set((Array.isArray(d.requiredProperties) ? d.requiredProperties : []).map(norm).filter(Boolean));\n  const properties = {};\n  for (const [n0, p0] of entries) {\n    const name = norm(n0); if (!name) continue;\n    const p = p0 && typeof p0 === 'object' ? p0 : {};\n    let type = p.type !== undefined ? normType(p.type) : null;\n    if (type && !TYPES.includes(type)) { templateWarnings.push(`${key}.${name}: unknown type \"${p.type}\" ignored`); type = null; }\n    if (p.required === true && !isStd) required.add(name);\n    properties[name] = {\n      type, fieldType: p.fieldType ? norm(p.fieldType) : null, label: p.label ?? null,\n      options: Array.isArray(p.options) ? p.options.map((o) => norm(o && typeof o === 'object' ? o.value : o)).filter(Boolean) : null,\n      allowExtraOptions: p.allowExtraOptions !== false, hasUniqueValue: typeof p.hasUniqueValue === 'boolean' ? p.hasUniqueValue : null,\n    };\n  }\n  if (isStd && d.requiredProperties) templateWarnings.push(`${key}: requiredProperties is ignored for standard objects (HubSpot has no object-level required flag for them)`);\n  return {\n    key, isStd, labels: d.labels && typeof d.labels === 'object' ? d.labels : null,\n    primaryDisplayProperty: !isStd && d.primaryDisplayProperty ? norm(d.primaryDisplayProperty) : null,\n    required: [...required], requiredDeclared: !isStd && (Array.isArray(d.requiredProperties) || entries.some(([, p]) => p && p.required !== undefined)),\n    properties, allowUnmanaged: d.allowUnmanagedProperties !== false,\n    reportUnmanaged: isStd ? d.allowUnmanagedProperties !== undefined : true,\n    associations: !isStd && Array.isArray(d.associations)\n      ? d.associations.map((a) => (typeof a === 'string' ? { to: norm(a), name: null } : { to: norm(a?.to), name: a?.name ? norm(a.name) : null })).filter((a) => a.to) : null,\n  };\n}\nconst tplCustom = Object.entries(T.customObjects || {}).map(([k, v]) => normTemplate(norm(k), v, false));\nconst tplStd = Object.entries(T.standardObjects || {}).map(([k, v]) => [norm(STD_ALIAS[norm(k)] || k), v]).filter(([k]) => {\n  if (STD[k]) return true; templateWarnings.push(`standardObjects.${k}: not a supported standard object, skipped`); return false;\n}).map(([k, v]) => normTemplate(k, v, true));\n\n// ── Actual schemas ───────────────────────────────────────────────────────────\nconst actualCustom = Array.isArray(ctx.actual?.customObjects) ? ctx.actual.customObjects : [];\nconst byKey = new Map();\nfor (const s of actualCustom) for (const k of [s.name, s.fullyQualifiedName, s.objectTypeId]) if (k) byKey.set(norm(k), s);\nconst resolveTarget = (to) => {\n  const t = STD_ALIAS[to] || to;\n  if (STD[t]) return { id: STD[t], label: STD_LABEL[t] };\n  if (/^\\d+-\\d+$/.test(t)) return { id: t, label: ID_TO_STD[t] ? STD_LABEL[ID_TO_STD[t]] : t };\n  const s = byKey.get(t);\n  if (s) return { id: s.objectTypeId, label: s.labels?.singular || s.name };\n  return { id: null, label: t, missingObject: tplCustom.some((o) => o.key === t) };\n};\nconst labelOfId = (id) => (ID_TO_STD[id] ? STD_LABEL[ID_TO_STD[id]] : (actualCustom.find((s) => s.objectTypeId === id)?.labels?.singular || id));\n\n// ── Findings ─────────────────────────────────────────────────────────────────\nconst findings = [];\nconst objects = [];\nconst unreadable = new Set();\nconst fmtList = (a, n = 6) => (a.length > n ? `${a.slice(0, n).join(', ')} +${a.length - n} more` : a.join(', '));\nfunction add(obj, rule, property, message, expected, actual, meta = {}) {\n  const severity = sevOf(rule);\n  if (!severity || severity === 'ignore') return;\n  const detail = meta.detail ? `:${meta.detail}` : '';\n  const key = `${obj.key}:${rule}${property ? `:${property}` : ''}${detail}`;\n  const p = prev[key];\n  findings.push({\n    key, rule, severity, object: obj.key, objectLabel: obj.label, objectTypeId: obj.objectTypeId || null, fullyQualifiedName: obj.fqn || null, kind: obj.kind,\n    property: property || null, message, expected: expected ?? null, actual: actual ?? null,\n    changedAt: meta.changedAt || null, changedByUserId: cfg.showChangedBy ? (meta.changedBy || null) : undefined,\n    status: p ? 'persisting' : 'new', firstSeenAt: p?.firstSeenAt || new Date(now).toISOString(),\n  });\n}\n\nfunction checkProperties(obj, tpl, actualProps) {\n  const aProps = new Map(actualProps.map((p) => [norm(p.name), p]));\n  const meta = (ap) => ({ changedAt: ap?.updatedAt || null, changedBy: ap?.updatedUserId || null });\n  const missing = [];\n  for (const [name, ep] of Object.entries(tpl.properties)) {\n    const ap = aProps.get(name);\n    if (!ap) { missing.push(name); continue; }\n    if (ap.archived === true) { add(obj, 'property_archived', name, `\\`${name}\\` is archived (deleted from the UI)`, 'active', 'archived', meta(ap)); continue; }\n    const at = normType(ap.type);\n    if (ep.type && at !== ep.type) add(obj, 'property_type_changed', name, `\\`${name}\\` type changed: ${ep.type} → ${at || 'none'}`, ep.type, at, meta(ap));\n    else if (ep.fieldType && norm(ap.fieldType) !== ep.fieldType) add(obj, 'property_field_type_changed', name, `\\`${name}\\` field type changed: ${ep.fieldType} → ${norm(ap.fieldType) || 'none'}`, ep.fieldType, norm(ap.fieldType), meta(ap));\n    if (ep.options) {\n      const opts = Array.isArray(ap.options) ? ap.options : [];\n      const all = new Map(opts.map((o) => [norm(o.value), o]));\n      const removed = ep.options.filter((v) => !all.has(v));\n      const hidden = ep.options.filter((v) => all.has(v) && all.get(v).hidden === true);\n      const added = [...all.keys()].filter((v) => v && !ep.options.includes(v));\n      if (removed.length) add(obj, 'property_option_removed', name, `\\`${name}\\` option${removed.length > 1 ? 's' : ''} removed: ${fmtList(removed)}`, ep.options, [...all.keys()], { ...meta(ap), detail: removed.sort().join('|') });\n      if (hidden.length) add(obj, 'property_option_hidden', name, `\\`${name}\\` option${hidden.length > 1 ? 's' : ''} hidden: ${fmtList(hidden)}`, null, hidden, { ...meta(ap), detail: hidden.sort().join('|') });\n      if (added.length) add(obj, ep.allowExtraOptions ? 'property_option_added' : 'property_option_added_locked', name, `\\`${name}\\` new option${added.length > 1 ? 's' : ''}: ${fmtList(added)}`, null, added, { ...meta(ap), detail: added.sort().join('|') });\n    }\n    if (ep.hasUniqueValue !== null && Boolean(ap.hasUniqueValue) !== ep.hasUniqueValue) add(obj, 'property_unique_changed', name, `\\`${name}\\` unique-value flag changed: ${ep.hasUniqueValue} → ${Boolean(ap.hasUniqueValue)}`, ep.hasUniqueValue, Boolean(ap.hasUniqueValue), meta(ap));\n    if (ep.label !== null && String(ap.label ?? '').trim() !== String(ep.label).trim()) add(obj, 'property_label_changed', name, `\\`${name}\\` label changed: \"${ep.label}\" → \"${ap.label ?? ''}\"`, ep.label, ap.label ?? '', meta(ap));\n  }\n  const total = Object.keys(tpl.properties).length;\n  if (missing.length >= 5 && missing.length / Math.max(1, total) >= cfg.massLossRatio) {\n    add(obj, 'mass_property_loss', null, `${missing.length} of ${total} managed properties missing (${fmtList(missing)}). Verify the token's portal and scopes before restoring anything.`, total, total - missing.length);\n  } else for (const name of missing) add(obj, 'property_missing', name, `\\`${name}\\` is missing (deleted or renamed)`, 'present', 'missing');\n  // unmanaged\n  if (tpl.reportUnmanaged) {\n    const unmanaged = actualProps.filter((p) => {\n      const n = norm(p.name);\n      return n && !tpl.properties[n] && p.hubspotDefined !== true && p.archived !== true && !isIgnoredProp(n);\n    });\n    for (const p of unmanaged) add(obj, tpl.allowUnmanaged ? 'property_unmanaged' : 'property_unmanaged_locked', norm(p.name),\n      `\\`${norm(p.name)}\\` (${normType(p.type)}) is not in the template${tpl.allowUnmanaged ? '' : ' and this object is locked'}`, null, normType(p.type), meta(p));\n    if (tpl.allowUnmanaged && unmanaged.length > cfg.unmanagedPropertyWarnCount) add(obj, 'unmanaged_property_volume', null,\n      `${unmanaged.length} unmanaged properties (threshold ${cfg.unmanagedPropertyWarnCount})`, cfg.unmanagedPropertyWarnCount, unmanaged.length);\n  }\n}\n\n// custom objects in template\nfor (const tpl of tplCustom) {\n  const s = byKey.get(tpl.key);\n  const obj = { key: tpl.key, label: s?.labels?.singular || tpl.labels?.singular || tpl.key, objectTypeId: s?.objectTypeId, fqn: s?.fullyQualifiedName, kind: 'custom', required: tpl.required };\n  const before = findings.length;\n  if (!s) { add(obj, 'object_missing', null, `Custom object \\`${tpl.key}\\` is missing (deleted, archived or not visible to this token)`, 'present', 'missing'); objects.push({ ...obj, state: 'missing', updatedAt: null }); continue; }\n  if (s.archived === true) { add(obj, 'object_archived', null, `Custom object \\`${tpl.key}\\` is archived`, 'active', 'archived', { changedAt: s.updatedAt }); objects.push({ ...obj, state: 'archived', updatedAt: s.updatedAt || null }); continue; }\n  if (tpl.labels) for (const k of ['singular', 'plural']) if (tpl.labels[k] !== undefined && String(s.labels?.[k] ?? '').trim() !== String(tpl.labels[k]).trim())\n    add(obj, 'object_label_changed', null, `${k} label changed: \"${tpl.labels[k]}\" → \"${s.labels?.[k] ?? ''}\"`, tpl.labels[k], s.labels?.[k] ?? '', { detail: k, changedAt: s.updatedAt });\n  if (tpl.primaryDisplayProperty && norm(s.primaryDisplayProperty) !== tpl.primaryDisplayProperty)\n    add(obj, 'primary_display_changed', null, `primary display property changed: ${tpl.primaryDisplayProperty} → ${norm(s.primaryDisplayProperty) || 'none'}`, tpl.primaryDisplayProperty, norm(s.primaryDisplayProperty), { changedAt: s.updatedAt });\n  if (!Array.isArray(s.properties)) {\n    add(obj, 'object_not_readable', null, 'Property definitions were not returned for this object. Property checks skipped.', 'properties', 'none');\n    unreadable.add(tpl.key);\n  } else {\n    if (tpl.requiredDeclared) {\n      const req = new Set((s.requiredProperties || []).map(norm));\n      for (const r of tpl.required) if (!req.has(r)) add(obj, 'required_flag_removed', r, `\\`${r}\\` is no longer required`, true, false, { changedAt: s.updatedAt });\n      for (const r of req) if (!tpl.required.includes(r)) add(obj, 'required_flag_added', r, `\\`${r}\\` is now required (record creates without it will fail)`, false, true, { changedAt: s.updatedAt });\n    }\n    checkProperties(obj, tpl, s.properties);\n  }\n  if (tpl.associations) {\n    const assocs = Array.isArray(s.associations) ? s.associations : [];\n    const has = (id, name) => assocs.some((a) => ((a.fromObjectTypeId === s.objectTypeId && a.toObjectTypeId === id) || (a.toObjectTypeId === s.objectTypeId && a.fromObjectTypeId === id)) && (!name || norm(a.name) === name));\n    const expectedIds = new Set();\n    for (const a of tpl.associations) {\n      const t = resolveTarget(a.to);\n      if (!t.id) { if (t.missingObject) add(obj, 'association_missing', null, `association to \\`${a.to}\\` missing (target object is missing)`, a.to, 'missing', { detail: a.to }); else templateWarnings.push(`${tpl.key}: association target \"${a.to}\" is not a known object`); continue; }\n      expectedIds.add(t.id);\n      if (!has(t.id, a.name)) add(obj, 'association_missing', null, `association to ${t.label}${a.name ? ` (\\`${a.name}\\`)` : ''} is missing`, a.to, 'missing', { detail: a.to });\n    }\n    const extra = [...new Set(assocs.map((a) => (a.fromObjectTypeId === s.objectTypeId ? a.toObjectTypeId : a.fromObjectTypeId)))].filter((id) => id && id !== s.objectTypeId && !expectedIds.has(id));\n    for (const id of extra) add(obj, 'association_unmanaged', null, `association to ${labelOfId(id)} is not in the template`, null, id, { detail: id });\n  }\n  objects.push({ ...obj, state: findings.length > before ? 'drift' : 'ok', updatedAt: s.updatedAt || null });\n}\n// unmanaged custom objects\nconst managedKeys = new Set(tplCustom.map((o) => o.key));\nfor (const s of actualCustom) {\n  const keys = [s.name, s.fullyQualifiedName, s.objectTypeId].map(norm);\n  if (keys.some((k) => managedKeys.has(k)) || s.archived === true || isIgnoredObj(...keys)) continue;\n  const obj = { key: norm(s.name), label: s.labels?.singular || s.name, objectTypeId: s.objectTypeId, fqn: s.fullyQualifiedName, kind: 'custom', required: [] };\n  const n0 = findings.length;\n  add(obj, 'object_unmanaged', null, `Custom object \\`${s.fullyQualifiedName || s.name}\\` is not in the template (${((k) => `${k} custom propert${k === 1 ? 'y' : 'ies'}`)((s.properties || []).filter((p) => !p.hubspotDefined).length)})`, null, s.objectTypeId, { changedAt: s.createdAt || s.updatedAt });\n  if (T.allowUnmanagedObjects === true && findings.length > n0) findings[findings.length - 1].severity = 'info';\n  objects.push({ ...obj, state: 'unmanaged', updatedAt: s.updatedAt || null });\n}\n// standard objects\nfor (const tpl of tplStd) {\n  const a = ctx.actual?.standardObjects?.[tpl.key];\n  const obj = { key: tpl.key, label: STD_LABEL[tpl.key], objectTypeId: STD[tpl.key], fqn: tpl.key, kind: 'standard', required: [] };\n  const before = findings.length;\n  if (!a || !Array.isArray(a.properties)) {\n    add(obj, 'object_not_readable', null, `Properties could not be read: ${a?.readError || 'no response'}. Check the crm.schemas.${tpl.key}.read scope.`, 'readable', 'error');\n    unreadable.add(tpl.key); objects.push({ ...obj, state: 'unreadable', updatedAt: null }); continue;\n  }\n  checkProperties(obj, tpl, a.properties);\n  objects.push({ ...obj, state: findings.length > before ? 'drift' : 'ok', updatedAt: null });\n}\n\n// ── Sort, count, resolve ─────────────────────────────────────────────────────\nfindings.sort((a, b) => SEV[b.severity] - SEV[a.severity] || a.object.localeCompare(b.object) || String(a.property).localeCompare(String(b.property)));\nconst keys = new Set(findings.map((f) => f.key));\nconst resolved = []; const carryOver = [];\nfor (const [k, v] of Object.entries(prev)) {\n  if (keys.has(k)) continue;\n  if (unreadable.has(k.split(':')[0])) { carryOver.push(k); continue; }\n  resolved.push({ key: k, severity: v.severity, message: v.message || k, firstSeenAt: v.firstSeenAt || null });\n}\nconst min = SEV[cfg.alertMinSeverity] || SEV.warning;\nconst alertable = findings.filter((f) => SEV[f.severity] >= min);\nconst counts = {\n  critical: findings.filter((f) => f.severity === 'critical').length, warning: findings.filter((f) => f.severity === 'warning').length,\n  info: findings.filter((f) => f.severity === 'info').length, total: findings.length, alertable: alertable.length,\n  new: findings.filter((f) => f.status === 'new').length, persisting: findings.filter((f) => f.status === 'persisting').length,\n  resolved: resolved.length, objectsAudited: objects.length,\n};\nconst status = counts.critical >= cfg.criticalFailThreshold ? 'fail' : (counts.critical + counts.warning > 0 ? 'drift' : 'pass');\nconst resolvedAlertable = resolved.filter((r) => SEV[r.severity] >= min);\n\n// ── Alert decision ───────────────────────────────────────────────────────────\nlet alert;\nif (!alertable.length && !(cfg.alertOnResolved && resolvedAlertable.length)) alert = { needed: false, reason: findings.length ? 'below_alert_threshold' : 'no_drift' };\nelse if (!persist || !cfg.suppressRepeatAlerts) alert = { needed: true, reason: 'drift' };\nelse {\n  const fresh = alertable.filter((f) => f.status === 'new').length;\n  const lastAlert = Date.parse(mem.lastAlertAt || '') || 0;\n  const reminder = alertable.some((f) => f.severity === 'critical') && now - lastAlert >= cfg.reminderHours * 3600000;\n  const res = cfg.alertOnResolved && resolvedAlertable.length > 0;\n  alert = fresh ? { needed: true, reason: 'new_drift' } : reminder ? { needed: true, reason: 'critical_reminder' } : res ? { needed: true, reason: 'drift_resolved' } : { needed: false, reason: 'repeat_suppressed' };\n}\nconst notes = [];\nif (tplCustom.length && !actualCustom.length) notes.push('HubSpot returned no custom objects. Check that the token belongs to the intended portal and has crm.schemas.custom.read.');\nif (unreadable.size) notes.push(`Not audited (read errors): ${[...unreadable].join(', ')}. Their previous findings are carried over.`);\n\n// ── Optional template snapshot (bootstrap from the current portal) ───────────\nlet templateSnapshot;\nif (cfg.generateTemplateSnapshot) {\n  const snapProps = (props) => Object.fromEntries((props || []).filter((p) => p.hubspotDefined !== true && p.archived !== true && !isIgnoredProp(norm(p.name))).map((p) => {\n    const e = { type: normType(p.type), fieldType: norm(p.fieldType), label: p.label };\n    if (Array.isArray(p.options) && p.options.length) e.options = p.options.filter((o) => o.hidden !== true).map((o) => o.value);\n    if (p.hasUniqueValue) e.hasUniqueValue = true;\n    return [norm(p.name), e];\n  }));\n  templateSnapshot = { templateVersion: `snapshot-${new Date(now).toISOString().slice(0, 10)}`, managedBy: 'Generated by n8n-hubspot-custom-object-schema-drift-detector. Review before use.', customObjects: {}, standardObjects: {} };\n  for (const s of actualCustom.filter((x) => x.archived !== true)) templateSnapshot.customObjects[norm(s.name)] = {\n    labels: s.labels, primaryDisplayProperty: s.primaryDisplayProperty, requiredProperties: s.requiredProperties || [], properties: snapProps(s.properties),\n    associations: [...new Set((s.associations || []).map((a) => (a.fromObjectTypeId === s.objectTypeId ? a.toObjectTypeId : a.fromObjectTypeId)))].filter((id) => id !== s.objectTypeId)\n      .map((id) => ({ to: ID_TO_STD[id] || norm(actualCustom.find((x) => x.objectTypeId === id)?.name || id) })),\n  };\n  for (const tpl of tplStd) { const a = ctx.actual?.standardObjects?.[tpl.key]; if (a && Array.isArray(a.properties)) templateSnapshot.standardObjects[tpl.key] = { properties: snapProps(a.properties) }; }\n}\n\nreturn [{ json: { ...base, status, auditError: null, templateVersion: T.templateVersion || null, templateWarnings, objects, findings, resolved, carryOver, counts, alert, notes, ...(templateSnapshot ? { templateSnapshot } : {}) } }];\n"
+      },
+      "id": "cdceb39d-d770-57c9-bff0-54b0e8df09af",
+      "name": "Schema Drift Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        60
+      ],
+      "notes": "Template validation, drift rules, severity, new/persisting/resolved, alert decision.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Build Governance Report (Slack Block Kit)\n// One message per audit: status header, per-object discrepancies (critical\n// first), links to HubSpot property settings, resolved items and audit context.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst A = $input.first().json;\nconst SEV = { info: 1, warning: 2, critical: 3 };\nconst ICON = { critical: '🔴', warning: '🟠', info: '🔵' };\nconst min = SEV[cfg.alertMinSeverity] || 2;\nconst portal = A.portalId || '';\nconst fill = (t, o) => String(t || '').replace(/\\{appHost\\}/g, cfg.appHost).replace(/\\{portalId\\}/g, portal).replace(/\\{objectTypeId\\}/g, encodeURIComponent(o.objectTypeId || ''));\nconst settingsUrl = (o) => (portal && o.objectTypeId ? fill(cfg.propertySettingsUrlTemplate, o) : null);\nconst clip = (t, n) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);\nconst blocks = [];\nconst ctxLine = () => `Portal ${portal || 'n/a'} · template ${A.templateVersion || 'unversioned'} (${A.templateSource}) · run ${cfg.runId}`;\n\nif (A.status === 'error') {\n  blocks.push({ type: 'header', text: { type: 'plain_text', text: '⚠️ HubSpot schema audit could not run', emoji: true } });\n  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: clip(`*${A.auditError.kind === 'template' ? 'Expected template problem' : 'HubSpot read failed'}*\\n${A.auditError.messages.map((m) => `• ${m}`).join('\\n')}\\n\\nNo drift checks ran, so this is not an all-clear.`, 2900) } });\n  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: ctxLine() }] });\n} else {\n  const c = A.counts;\n  const head = { fail: '🔴 Schema drift: FAIL', drift: '🟠 Schema drift detected', pass: '🟢 Schema matches template' }[A.status];\n  blocks.push({ type: 'header', text: { type: 'plain_text', text: clip(`${head} · ${c.critical} critical · ${c.warning} warning · ${c.info} info`, 150), emoji: true } });\n  const why = { new_drift: `${A.findings.filter((f) => f.status === 'new' && SEV[f.severity] >= min).length} new since the last audit`, critical_reminder: `reminder: critical drift still open (every ${cfg.reminderHours}h)`, drift_resolved: 'drift resolved since the last audit', drift: 'audit result' }[A.alert.reason] || '';\n  blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `*${c.objectsAudited} objects audited* against the expected template${why ? ` · _${why}_` : ''}.${A.notes.length ? `\\n${A.notes.map((n) => `⚠️ ${n}`).join('\\n')}` : ''}` } });\n  const shown = A.findings.filter((f) => SEV[f.severity] >= min || (cfg.includeInfoInSlack && f.severity === 'info'));\n  const hiddenInfo = A.findings.length - shown.length;\n  const groups = [];\n  for (const f of shown) { let g = groups.find((x) => x.object === f.object); if (!g) { g = { object: f.object, o: f, items: [] }; groups.push(g); } g.items.push(f); }\n  const n = (g, sv) => g.items.filter((f) => f.severity === sv).length;\n  groups.sort((a, b) => n(b, 'critical') - n(a, 'critical') || n(b, 'warning') - n(a, 'warning') || b.items.length - a.items.length);\n  const maxGroups = 12;\n  for (const g of groups.slice(0, maxGroups)) {\n    const o = g.o; const st = A.objects.find((x) => x.key === g.object);\n    const title = `*${o.objectLabel}* ${o.kind === 'custom' ? `(\\`${o.fullyQualifiedName || o.object}\\`${o.objectTypeId ? `, ${o.objectTypeId}` : ''})` : '(standard object)'}`;\n    const lines = g.items.slice(0, cfg.maxLinesPerObject).map((f) => `${ICON[f.severity]} ${f.message}${f.status === 'new' && A.persist ? ' · *new*' : ''}${f.changedByUserId ? ` · user ${f.changedByUserId}` : ''}`);\n    if (g.items.length > cfg.maxLinesPerObject) lines.push(`_+${g.items.length - cfg.maxLinesPerObject} more in the audit log_`);\n    const mod = st?.updatedAt ? `\\n_Schema last modified ${st.updatedAt.slice(0, 16).replace('T', ' ')} UTC_` : '';\n    const sec = { type: 'section', text: { type: 'mrkdwn', text: clip(`${title}\\n${lines.join('\\n')}${mod}`, 2900) } };\n    const u = settingsUrl(o);\n    if (u) sec.accessory = { type: 'button', text: { type: 'plain_text', text: 'Property settings' }, url: u };\n    blocks.push({ type: 'divider' }, sec);\n  }\n  if (groups.length > maxGroups) blocks.push({ type: 'section', text: { type: 'mrkdwn', text: `_+${groups.length - maxGroups} more objects with drift in the audit log._` } });\n  if (!shown.length && A.status === 'pass') blocks.push({ type: 'section', text: { type: 'mrkdwn', text: '✅ No discrepancies at or above the alert threshold.' } });\n  if (A.resolved.length && cfg.alertOnResolved) blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: clip(`✅ *Resolved since the last audit (${A.resolved.length})*\\n${A.resolved.slice(0, 8).map((r) => `• ${r.message}`).join('\\n')}${A.resolved.length > 8 ? `\\n_+${A.resolved.length - 8} more_` : ''}`, 2900) } });\n  if (cfg.dataModelUrl) blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Data model overview' }, url: cfg.dataModelUrl }] });\n  blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `${ctxLine()}${hiddenInfo ? ` · ${hiddenInfo} lower-severity findings in the audit log` : ''}` }] });\n}\nconst text = A.status === 'error' ? 'HubSpot schema audit could not run' : `HubSpot schema drift: ${A.counts.critical} critical, ${A.counts.warning} warning, ${A.counts.info} info`;\nreturn [{ json: { message: { text, blocks: blocks.slice(0, 49) }, alertNeeded: A.alert.needed, slackAllowed: cfg.sendSlackAlerts && A.alert.needed } }];\n"
+      },
+      "id": "6734acb6-a79d-5462-a3f6-645361c53366",
+      "name": "Build Governance Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2260,
+        60
+      ],
+      "notes": "Slack Block Kit governance report with property-settings links.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "132a390d-6ff6-5f33-9184-2bec46b4ba35",
+              "leftValue": "={{ $json.slackAllowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9cbccc19-d0ad-56bc-8e6d-9f8f240d195a",
+      "name": "Slack Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_GOVERNANCE_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.message) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "385fdac4-38bd-5971-87fe-8b8db0d6d04d",
+      "name": "Slack: Post Governance Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        -40
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "",
+      "notesInFlow": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect Slack Results: Slack incoming webhooks answer \"ok\" (text) on success.\nconst r = $input.first().json;\nconst ok = !r.error && (r.data === undefined || String(r.data).trim() === 'ok' || r.ok === true);\nreturn [{ json: { sent: ok ? 1 : 0, failed: ok ? 0 : 1, error: ok ? null : String(r.error?.message || r.error || r.data || 'unknown').slice(0, 200) } }];\n"
+      },
+      "id": "7691a5df-cb13-595a-ae3f-8dc14af3c664",
+      "name": "Collect Slack Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2920,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Build Run Summary & Record State\n// JSON for ALERT_WEBHOOK_URL (GRC tooling, BI, ticketing) plus workflow memory.\n// Memory is written only for production executions, and only when the alert\n// was delivered or not needed, so an undelivered finding stays \"new\".\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst A = $('Schema Drift Analysis').first().json;\nlet sl = null; try { sl = $('Collect Slack Results').isExecuted ? $('Collect Slack Results').first().json : null; } catch (e) { sl = null; }\nconst delivered = Boolean(sl && sl.sent > 0);\nconst body = {\n  event: 'hubspot.schema_drift.audit', runId: cfg.runId, generatedAt: A.generatedAt, portalId: A.portalId || null,\n  mode: cfg.sandboxMode ? 'sandbox' : cfg.dryRun ? 'dry_run' : 'live', status: A.status, auditError: A.auditError,\n  templateVersion: A.templateVersion, templateSource: A.templateSource, counts: A.counts, alertReason: A.alert.reason,\n  findings: A.findings.map((f) => ({ key: f.key, rule: f.rule, severity: f.severity, object: f.object, objectTypeId: f.objectTypeId, property: f.property, expected: f.expected, actual: f.actual, status: f.status, firstSeenAt: f.firstSeenAt })),\n  resolved: A.resolved.map((r) => ({ key: r.key, severity: r.severity })), slack: sl ? { sent: sl.sent, failed: sl.failed } : null,\n};\nlet recorded = false;\nif (A.persist && A.status !== 'error' && (!A.alert.needed || delivered)) {\n  const store = $getWorkflowStaticData('global');\n  const prev = store.schemaDrift?.findings || {};\n  const findings = {};\n  for (const k of A.carryOver || []) if (prev[k]) findings[k] = prev[k];\n  for (const f of A.findings) findings[f.key] = { severity: f.severity, message: f.message, firstSeenAt: f.firstSeenAt, lastSeenAt: A.generatedAt };\n  store.schemaDrift = { findings, lastAuditAt: A.generatedAt, lastAlertAt: delivered ? A.generatedAt : (store.schemaDrift?.lastAlertAt || null), lastStatus: A.status };\n  recorded = true;\n}\nconst sendAllowed = cfg.webhookEnabled && (A.alert.needed || cfg.notifyOnEveryRun);\nreturn [{ json: { body, sendAllowed, recorded, delivered } }];\n"
+      },
+      "id": "ccb159b4-ce0f-5f02-9432-a22e2e5f4ed8",
+      "name": "Build Run Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3140,
+        60
+      ],
+      "notes": "Run summary JSON + workflow memory (production only, after delivery).",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "316b1746-6081-59dc-b559-c80bce41e9cd",
+              "leftValue": "={{ $json.sendAllowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f3589c69-daf9-5f6a-8f10-d8f091daa250",
+      "name": "Summary Webhook?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ALERT_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.ALERT_WEBHOOK_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d45f7022-ce6c-54c8-bc37-b40696494db2",
+      "name": "Webhook: Post Run Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3580,
+        -40
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "notes": "Generic JSON webhook.",
+      "notesInFlow": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Execution Summary & Audit\n// Final record on every path: outcome, safety flags, counts, every finding\n// (schema metadata only, no record data), delivery results.\n// ─────────────────────────────────────────────────────────────────────────────\nconst cfg = $('Config & Safety Gate').first().json.config;\nconst A = $('Schema Drift Analysis').first().json;\nconst S = $('Build Run Summary').first().json;\nconst B = $('Build Governance Report').first().json;\nlet sl = null; try { sl = $('Collect Slack Results').isExecuted ? $('Collect Slack Results').first().json : null; } catch (e) { sl = null; }\nlet wh = 'not_sent';\ntry { if ($('Webhook: Post Run Summary').isExecuted) { const r = $('Webhook: Post Run Summary').first().json; wh = r.error ? `failed: ${String(r.error.message || r.error).slice(0, 120)}` : 'sent'; } } catch (e) { wh = 'not_sent'; }\nlet outcome;\nif (A.status === 'error') outcome = sl?.sent ? 'audit_failed_alerted' : `audit_failed_${A.auditError.kind}`;\nelse if (!A.alert.needed) outcome = { no_drift: 'no_drift', below_alert_threshold: 'drift_below_alert_threshold', repeat_suppressed: 'drift_alert_suppressed' }[A.alert.reason] || 'no_alert';\nelse if (cfg.sandboxMode) outcome = 'drift_found_sandbox';\nelse if (cfg.dryRun) outcome = 'drift_found_dry_run';\nelse if (!cfg.sendSlackAlerts) outcome = 'drift_found_alerts_disabled';\nelse outcome = sl?.sent ? 'drift_alerted' : 'drift_alert_failed';\nreturn [{ json: {\n  workflow: 'n8n-hubspot-custom-object-schema-drift-detector', runId: cfg.runId, executionMode: cfg.executionMode, finishedAt: new Date().toISOString(), outcome,\n  safety: { sandboxMode: cfg.sandboxMode, dryRun: cfg.dryRun, sendSlackAlerts: cfg.sendSlackAlerts, webhookEnabled: cfg.webhookEnabled, hubspotWrites: 'none (read-only workflow)' },\n  thresholds: { alertMinSeverity: cfg.alertMinSeverity, criticalFailThreshold: cfg.criticalFailThreshold, unmanagedPropertyWarnCount: cfg.unmanagedPropertyWarnCount, massLossRatio: cfg.massLossRatio, reminderHours: cfg.reminderHours },\n  status: A.status, auditError: A.auditError, templateVersion: A.templateVersion, templateSource: A.templateSource, templateWarnings: A.templateWarnings,\n  counts: A.counts, alert: A.alert, notes: A.notes,\n  objects: A.objects.map((o) => ({ object: o.key, kind: o.kind, objectTypeId: o.objectTypeId || null, state: o.state, findings: A.findings.filter((f) => f.object === o.key).length })),\n  findings: A.findings.map((f) => ({ severity: f.severity, rule: f.rule, object: f.object, property: f.property, message: f.message, expected: f.expected, actual: f.actual, status: f.status, changedAt: f.changedAt })),\n  resolved: A.resolved, slack: sl ? { sent: sl.sent, failed: sl.failed, error: sl.error } : { sent: 0, failed: 0, built: B.alertNeeded },\n  runSummaryWebhook: wh, stateRecorded: S.recorded,\n  ...(A.templateSnapshot ? { templateSnapshot: A.templateSnapshot } : {}),\n} }];\n"
+      },
+      "id": "3fe631c9-2eef-5f90-8b61-c76d7f9fc074",
+      "name": "Execution Summary & Audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3800,
+        180
+      ],
+      "notes": "Final record on every path.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Governance Audit Schedule": {
+      "main": [
+        [
+          {
+            "node": "Config & Safety Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config & Safety Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config & Safety Gate": {
+      "main": [
+        [
+          {
+            "node": "Sandbox Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sandbox Mode?": {
+      "main": [
+        [
+          {
+            "node": "Mock Schema Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Template URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Schema Context": {
+      "main": [
+        [
+          {
+            "node": "Schema Drift Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template URL?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Fetch Expected Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load Expected Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Fetch Expected Template": {
+      "main": [
+        [
+          {
+            "node": "Load Expected Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Expected Template": {
+      "main": [
+        [
+          {
+            "node": "Template Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template Valid?": {
+      "main": [
+        [
+          {
+            "node": "HubSpot: Get Custom Object Schemas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schema Drift Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot: Get Custom Object Schemas": {
+      "main": [
+        [
+          {
+            "node": "Standard Objects?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standard Objects?": {
+      "main": [
+        [
+          {
+            "node": "Emit Standard Object Reads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assemble Schema Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emit Standard Object Reads": {
+      "main": [
+        [
+          {
+            "node": "HubSpot: Get Standard Object Properties",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot: Get Standard Object Properties": {
+      "main": [
+        [
+          {
+            "node": "Assemble Schema Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assemble Schema Context": {
+      "main": [
+        [
+          {
+            "node": "Schema Drift Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schema Drift Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Governance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Governance Report": {
+      "main": [
+        [
+          {
+            "node": "Slack Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Gate": {
+      "main": [
+        [
+          {
+            "node": "Slack: Post Governance Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Post Governance Report": {
+      "main": [
+        [
+          {
+            "node": "Collect Slack Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Slack Results": {
+      "main": [
+        [
+          {
+            "node": "Build Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Run Summary": {
+      "main": [
+        [
+          {
+            "node": "Summary Webhook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Webhook?": {
+      "main": [
+        [
+          {
+            "node": "Webhook: Post Run Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execution Summary & Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Post Run Summary": {
+      "main": [
+        [
+          {
+            "node": "Execution Summary & Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "HTTP: Fetch Expected Template": [
+      {
+        "json": {
+          "data": "{\"templateVersion\": \"2026.11.1\", \"managedBy\": \"RevOps Governance (synthetic)\", \"description\": \"Synthetic master template for the dhRobin Systems schema drift detector sandbox.\", \"allowUnmanagedObjects\": false, \"customObjects\": {\"project\": {\"labels\": {\"singular\": \"Project\", \"plural\": \"Projects\"}, \"primaryDisplayProperty\": \"project_name\", \"requiredProperties\": [\"project_name\", \"project_stage\"], \"allowUnmanagedProperties\": true, \"properties\": {\"project_name\": {\"type\": \"string\", \"fieldType\": \"text\", \"label\": \"Project name\"}, \"project_stage\": {\"type\": \"enumeration\", \"fieldType\": \"select\", \"options\": [\"planning\", \"in_progress\", \"on_hold\", \"completed\"]}, \"budget_amount\": {\"type\": \"number\", \"fieldType\": \"number\"}, \"go_live_date\": {\"type\": \"date\", \"fieldType\": \"date\"}, \"delivery_owner_email\": {\"type\": \"string\", \"fieldType\": \"text\"}, \"project_code\": {\"type\": \"string\", \"fieldType\": \"text\", \"hasUniqueValue\": true}, \"health_score\": {\"type\": \"number\", \"fieldType\": \"number\"}}, \"associations\": [{\"to\": \"companies\"}, {\"to\": \"contacts\"}, {\"to\": \"deals\"}, {\"to\": \"contract\"}]}, \"contract\": {\"labels\": {\"singular\": \"Contract\", \"plural\": \"Contracts\"}, \"primaryDisplayProperty\": \"contract_number\", \"requiredProperties\": [\"contract_number\", \"start_date\"], \"allowUnmanagedProperties\": false, \"properties\": {\"contract_number\": {\"type\": \"string\", \"fieldType\": \"text\", \"hasUniqueValue\": true}, \"contract_title\": {\"type\": \"string\", \"fieldType\": \"text\"}, \"start_date\": {\"type\": \"date\", \"fieldType\": \"date\"}, \"end_date\": {\"type\": \"date\", \"fieldType\": \"date\"}, \"contract_value\": {\"type\": \"number\", \"fieldType\": \"number\"}, \"renewal_terms\": {\"type\": \"string\", \"fieldType\": \"textarea\"}, \"termination_reason\": {\"type\": \"enumeration\", \"fieldType\": \"select\", \"options\": [\"non_payment\", \"convenience\", \"breach\"]}}, \"associations\": [{\"to\": \"companies\"}, {\"to\": \"deals\"}]}, \"asset\": {\"labels\": {\"singular\": \"Asset\", \"plural\": \"Assets\"}, \"primaryDisplayProperty\": \"asset_tag\", \"requiredProperties\": [\"asset_tag\"], \"properties\": {\"asset_tag\": {\"type\": \"string\", \"fieldType\": \"text\", \"hasUniqueValue\": true}, \"asset_status\": {\"type\": \"enumeration\", \"fieldType\": \"select\", \"options\": [\"active\", \"retired\"]}}, \"associations\": [{\"to\": \"companies\"}]}}, \"standardObjects\": {\"deals\": {\"allowUnmanagedProperties\": true, \"properties\": {\"arr_amount\": {\"type\": \"number\", \"fieldType\": \"number\"}, \"contract_tier\": {\"type\": \"enumeration\", \"fieldType\": \"select\", \"options\": [\"standard\", \"plus\", \"enterprise\"]}, \"renewal_date\": {\"type\": \"date\", \"fieldType\": \"date\"}, \"deal_source_system\": {\"type\": \"string\", \"fieldType\": \"text\"}}}, \"companies\": {\"properties\": {\"customer_tier\": {\"type\": \"enumeration\", \"fieldType\": \"select\", \"options\": [\"smb\", \"growth\", \"enterprise\", \"strategic\"]}, \"annual_contract_value\": {\"type\": \"number\", \"fieldType\": \"number\"}, \"renewal_date\": {\"type\": \"date\", \"fieldType\": \"date\"}}}}}"
+        }
+      }
+    ],
+    "HubSpot: Get Custom Object Schemas": [
+      {
+        "json": {
+          "results": [
+            {
+              "id": "9900101",
+              "objectTypeId": "2-9900101",
+              "fullyQualifiedName": "p990_project",
+              "name": "project",
+              "labels": {
+                "singular": "Project",
+                "plural": "Projects"
+              },
+              "primaryDisplayProperty": "project_name",
+              "secondaryDisplayProperties": [
+                "project_stage"
+              ],
+              "requiredProperties": [
+                "project_name"
+              ],
+              "searchableProperties": [
+                "project_name",
+                "project_code"
+              ],
+              "archived": false,
+              "createdAt": "2025-03-04T09:00:00.000Z",
+              "properties": [
+                {
+                  "name": "hs_object_id",
+                  "label": "Record ID",
+                  "type": "number",
+                  "fieldType": "number",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_createdate",
+                  "label": "Create date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_lastmodifieddate",
+                  "label": "Last modified date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "project_name",
+                  "label": "Project title",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000001",
+                  "updatedAt": "2026-11-15T14:00:00.000Z"
+                },
+                {
+                  "name": "project_stage",
+                  "label": "Project stage",
+                  "type": "enumeration",
+                  "fieldType": "select",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [
+                    {
+                      "label": "Planning",
+                      "value": "planning",
+                      "displayOrder": 0,
+                      "hidden": false
+                    },
+                    {
+                      "label": "In Progress",
+                      "value": "in_progress",
+                      "displayOrder": 1,
+                      "hidden": false
+                    },
+                    {
+                      "label": "Completed",
+                      "value": "completed",
+                      "displayOrder": 2,
+                      "hidden": false
+                    },
+                    {
+                      "label": "Cancelled",
+                      "value": "cancelled",
+                      "displayOrder": 3,
+                      "hidden": false
+                    }
+                  ],
+                  "updatedUserId": "71000002",
+                  "updatedAt": "2026-11-15T20:00:00.000Z"
+                },
+                {
+                  "name": "budget_amount",
+                  "label": "Budget amount",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000002",
+                  "updatedAt": "2026-11-15T20:00:00.000Z"
+                },
+                {
+                  "name": "go_live_date",
+                  "label": "Go-live date",
+                  "type": "date",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "project_code",
+                  "label": "Project code",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000002",
+                  "updatedAt": "2026-11-15T20:00:00.000Z"
+                },
+                {
+                  "name": "health_score",
+                  "label": "Health score",
+                  "type": "number",
+                  "fieldType": "number",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "temp_import_batch",
+                  "label": "Temp import batch",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000003",
+                  "updatedAt": "2026-11-15T10:00:00.000Z"
+                },
+                {
+                  "name": "legacy_status_copy",
+                  "label": "Legacy status (copy)",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000003",
+                  "updatedAt": "2026-11-15T10:00:00.000Z"
+                }
+              ],
+              "associations": [
+                {
+                  "id": "901",
+                  "fromObjectTypeId": "2-9900101",
+                  "toObjectTypeId": "0-2",
+                  "name": "project_to_company"
+                },
+                {
+                  "id": "902",
+                  "fromObjectTypeId": "2-9900101",
+                  "toObjectTypeId": "0-1",
+                  "name": "project_to_contact"
+                },
+                {
+                  "id": "903",
+                  "fromObjectTypeId": "2-9900101",
+                  "toObjectTypeId": "0-3",
+                  "name": "project_to_deal"
+                },
+                {
+                  "id": "904",
+                  "fromObjectTypeId": "2-9900101",
+                  "toObjectTypeId": "0-5",
+                  "name": "project_to_ticket"
+                }
+              ],
+              "updatedAt": "2026-11-15T20:00:00.000Z"
+            },
+            {
+              "id": "9900102",
+              "objectTypeId": "2-9900102",
+              "fullyQualifiedName": "p990_contract",
+              "name": "contract",
+              "labels": {
+                "singular": "Contract",
+                "plural": "Contracts"
+              },
+              "primaryDisplayProperty": "contract_title",
+              "secondaryDisplayProperties": [],
+              "requiredProperties": [
+                "contract_number",
+                "start_date",
+                "signed_by"
+              ],
+              "searchableProperties": [
+                "contract_number"
+              ],
+              "archived": false,
+              "createdAt": "2025-05-12T09:00:00.000Z",
+              "properties": [
+                {
+                  "name": "hs_object_id",
+                  "label": "Record ID",
+                  "type": "number",
+                  "fieldType": "number",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_createdate",
+                  "label": "Create date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_lastmodifieddate",
+                  "label": "Last modified date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "contract_number",
+                  "label": "Contract number",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": true,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "contract_title",
+                  "label": "Contract title",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "start_date",
+                  "label": "Start date",
+                  "type": "date",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "end_date",
+                  "label": "End date",
+                  "type": "date",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "contract_value",
+                  "label": "Contract value",
+                  "type": "number",
+                  "fieldType": "number",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": []
+                },
+                {
+                  "name": "renewal_terms",
+                  "label": "Renewal terms",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000001",
+                  "updatedAt": "2026-11-14T20:00:00.000Z"
+                },
+                {
+                  "name": "termination_reason",
+                  "label": "Termination reason",
+                  "type": "enumeration",
+                  "fieldType": "select",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [
+                    {
+                      "label": "Non Payment",
+                      "value": "non_payment",
+                      "displayOrder": 0,
+                      "hidden": false
+                    },
+                    {
+                      "label": "Convenience",
+                      "value": "convenience",
+                      "displayOrder": 1,
+                      "hidden": false
+                    },
+                    {
+                      "label": "Breach",
+                      "value": "breach",
+                      "displayOrder": 2,
+                      "hidden": false
+                    }
+                  ],
+                  "archived": true,
+                  "updatedUserId": "71000001",
+                  "updatedAt": "2026-11-14T20:00:00.000Z"
+                },
+                {
+                  "name": "signed_by",
+                  "label": "Signed by",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000001",
+                  "updatedAt": "2026-11-14T20:00:00.000Z"
+                },
+                {
+                  "name": "notes_misc",
+                  "label": "Misc notes",
+                  "type": "string",
+                  "fieldType": "textarea",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000003",
+                  "updatedAt": "2026-11-14T04:00:00.000Z"
+                }
+              ],
+              "associations": [
+                {
+                  "id": "911",
+                  "fromObjectTypeId": "2-9900102",
+                  "toObjectTypeId": "0-2",
+                  "name": "contract_to_company"
+                },
+                {
+                  "id": "912",
+                  "fromObjectTypeId": "2-9900102",
+                  "toObjectTypeId": "0-3",
+                  "name": "contract_to_deal"
+                }
+              ],
+              "updatedAt": "2026-11-14T20:00:00.000Z"
+            },
+            {
+              "id": "9900103",
+              "objectTypeId": "2-9900103",
+              "fullyQualifiedName": "p990_vendor_scorecard",
+              "name": "vendor_scorecard",
+              "labels": {
+                "singular": "Vendor scorecard",
+                "plural": "Vendor scorecards"
+              },
+              "primaryDisplayProperty": "vendor_name",
+              "requiredProperties": [
+                "vendor_name"
+              ],
+              "searchableProperties": [],
+              "archived": false,
+              "createdAt": "2026-11-14T10:00:00.000Z",
+              "properties": [
+                {
+                  "name": "hs_object_id",
+                  "label": "Record ID",
+                  "type": "number",
+                  "fieldType": "number",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_createdate",
+                  "label": "Create date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "hs_lastmodifieddate",
+                  "label": "Last modified date",
+                  "type": "datetime",
+                  "fieldType": "date",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": true,
+                  "calculated": false,
+                  "formField": false,
+                  "options": []
+                },
+                {
+                  "name": "vendor_name",
+                  "label": "Vendor name",
+                  "type": "string",
+                  "fieldType": "text",
+                  "groupName": "custom_information",
+                  "description": "",
+                  "hasUniqueValue": false,
+                  "hidden": false,
+                  "hubspotDefined": false,
+                  "calculated": false,
+                  "formField": true,
+                  "options": [],
+                  "updatedUserId": "71000003",
+                  "updatedAt": "2026-11-14T14:00:00.000Z"
+                }
+              ],
+              "associations": [
+                {
+                  "id": "921",
+                  "fromObjectTypeId": "2-9900103",
+                  "toObjectTypeId": "0-2",
+                  "name": "vendor_scorecard_to_company"
+                }
+              ],
+              "updatedAt": "2026-11-14T14:00:00.000Z"
+            }
+          ]
+        }
+      }
+    ],
+    "HubSpot: Get Standard Object Properties": [
+      {
+        "json": {
+          "results": [
+            {
+              "name": "dealname",
+              "label": "Deal name",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "amount",
+              "label": "Amount",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "closedate",
+              "label": "Close date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_object_id",
+              "label": "Record ID",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "contract_tier",
+              "label": "Contract tier",
+              "type": "enumeration",
+              "fieldType": "select",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [
+                {
+                  "label": "Standard",
+                  "value": "standard",
+                  "displayOrder": 0,
+                  "hidden": false
+                },
+                {
+                  "label": "Plus",
+                  "value": "plus",
+                  "displayOrder": 1,
+                  "hidden": true
+                },
+                {
+                  "label": "Enterprise",
+                  "value": "enterprise",
+                  "displayOrder": 2,
+                  "hidden": false
+                }
+              ],
+              "updatedUserId": "71000002",
+              "updatedAt": "2026-11-13T18:00:00.000Z"
+            },
+            {
+              "name": "renewal_date",
+              "label": "Renewal date",
+              "type": "date",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "deal_source_system",
+              "label": "Deal source system",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "q3_promo_code",
+              "label": "Q3 promo code",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-13T08:00:00.000Z"
+            },
+            {
+              "name": "sdr_notes_tmp",
+              "label": "Sdr notes tmp",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-13T06:00:00.000Z"
+            },
+            {
+              "name": "import_batch_id",
+              "label": "Import batch id",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-12T22:00:00.000Z"
+            },
+            {
+              "name": "legacy_deal_owner",
+              "label": "Legacy deal owner",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-12T17:00:00.000Z"
+            },
+            {
+              "name": "utm_campaign_copy",
+              "label": "Utm campaign copy",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-12T13:00:00.000Z"
+            },
+            {
+              "name": "partner_referral_flag",
+              "label": "Partner referral flag",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "updatedUserId": "71000003",
+              "updatedAt": "2026-11-12T11:00:00.000Z"
+            }
+          ]
+        }
+      },
+      {
+        "json": {
+          "results": [
+            {
+              "name": "name",
+              "label": "Company name",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "domain",
+              "label": "Company domain name",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "customer_tier",
+              "label": "Customer tier",
+              "type": "enumeration",
+              "fieldType": "select",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [
+                {
+                  "label": "Smb",
+                  "value": "smb",
+                  "displayOrder": 0,
+                  "hidden": false
+                },
+                {
+                  "label": "Growth",
+                  "value": "growth",
+                  "displayOrder": 1,
+                  "hidden": false
+                },
+                {
+                  "label": "Enterprise",
+                  "value": "enterprise",
+                  "displayOrder": 2,
+                  "hidden": false
+                },
+                {
+                  "label": "Strategic",
+                  "value": "strategic",
+                  "displayOrder": 3,
+                  "hidden": false
+                }
+              ]
+            },
+            {
+              "name": "annual_contract_value",
+              "label": "Annual contract value",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "renewal_date",
+              "label": "Renewal date",
+              "type": "date",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "internal_region_code",
+              "label": "Internal region code",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "legacy_account_id",
+              "label": "Legacy account ID",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            }
+          ]
+        }
+      }
+    ],
+    "Slack: Post Governance Report": [
+      {
+        "json": {
+          "data": "ok"
+        }
+      }
+    ],
+    "Webhook: Post Run Summary": [
+      {
+        "json": {
+          "received": true
+        }
+      }
+    ]
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 600
+  },
+  "versionId": "0e222c49-b79a-5161-94f8-2e7f7b49a0a7",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
