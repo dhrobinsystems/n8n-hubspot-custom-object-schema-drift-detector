@@ -1,0 +1,1180 @@
+{
+  "_meta": {
+    "notice": "Synthetic data only. Portal, object type IDs, user IDs and property names are fictional placeholders.",
+    "portalId": "99000001",
+    "expectedDrift": {
+      "critical": 8,
+      "warning": 9,
+      "info": 11
+    },
+    "relativeTimes": "_relative.updatedHoursAgo is resolved to an ISO updatedAt at run time."
+  },
+  "expectedTemplate": {
+    "templateVersion": "2026.11.1",
+    "managedBy": "RevOps Governance (synthetic)",
+    "description": "Synthetic master template for the dhRobin Systems schema drift detector sandbox.",
+    "allowUnmanagedObjects": false,
+    "customObjects": {
+      "project": {
+        "labels": {
+          "singular": "Project",
+          "plural": "Projects"
+        },
+        "primaryDisplayProperty": "project_name",
+        "requiredProperties": [
+          "project_name",
+          "project_stage"
+        ],
+        "allowUnmanagedProperties": true,
+        "properties": {
+          "project_name": {
+            "type": "string",
+            "fieldType": "text",
+            "label": "Project name"
+          },
+          "project_stage": {
+            "type": "enumeration",
+            "fieldType": "select",
+            "options": [
+              "planning",
+              "in_progress",
+              "on_hold",
+              "completed"
+            ]
+          },
+          "budget_amount": {
+            "type": "number",
+            "fieldType": "number"
+          },
+          "go_live_date": {
+            "type": "date",
+            "fieldType": "date"
+          },
+          "delivery_owner_email": {
+            "type": "string",
+            "fieldType": "text"
+          },
+          "project_code": {
+            "type": "string",
+            "fieldType": "text",
+            "hasUniqueValue": true
+          },
+          "health_score": {
+            "type": "number",
+            "fieldType": "number"
+          }
+        },
+        "associations": [
+          {
+            "to": "companies"
+          },
+          {
+            "to": "contacts"
+          },
+          {
+            "to": "deals"
+          },
+          {
+            "to": "contract"
+          }
+        ]
+      },
+      "contract": {
+        "labels": {
+          "singular": "Contract",
+          "plural": "Contracts"
+        },
+        "primaryDisplayProperty": "contract_number",
+        "requiredProperties": [
+          "contract_number",
+          "start_date"
+        ],
+        "allowUnmanagedProperties": false,
+        "properties": {
+          "contract_number": {
+            "type": "string",
+            "fieldType": "text",
+            "hasUniqueValue": true
+          },
+          "contract_title": {
+            "type": "string",
+            "fieldType": "text"
+          },
+          "start_date": {
+            "type": "date",
+            "fieldType": "date"
+          },
+          "end_date": {
+            "type": "date",
+            "fieldType": "date"
+          },
+          "contract_value": {
+            "type": "number",
+            "fieldType": "number"
+          },
+          "renewal_terms": {
+            "type": "string",
+            "fieldType": "textarea"
+          },
+          "termination_reason": {
+            "type": "enumeration",
+            "fieldType": "select",
+            "options": [
+              "non_payment",
+              "convenience",
+              "breach"
+            ]
+          }
+        },
+        "associations": [
+          {
+            "to": "companies"
+          },
+          {
+            "to": "deals"
+          }
+        ]
+      },
+      "asset": {
+        "labels": {
+          "singular": "Asset",
+          "plural": "Assets"
+        },
+        "primaryDisplayProperty": "asset_tag",
+        "requiredProperties": [
+          "asset_tag"
+        ],
+        "properties": {
+          "asset_tag": {
+            "type": "string",
+            "fieldType": "text",
+            "hasUniqueValue": true
+          },
+          "asset_status": {
+            "type": "enumeration",
+            "fieldType": "select",
+            "options": [
+              "active",
+              "retired"
+            ]
+          }
+        },
+        "associations": [
+          {
+            "to": "companies"
+          }
+        ]
+      }
+    },
+    "standardObjects": {
+      "deals": {
+        "allowUnmanagedProperties": true,
+        "properties": {
+          "arr_amount": {
+            "type": "number",
+            "fieldType": "number"
+          },
+          "contract_tier": {
+            "type": "enumeration",
+            "fieldType": "select",
+            "options": [
+              "standard",
+              "plus",
+              "enterprise"
+            ]
+          },
+          "renewal_date": {
+            "type": "date",
+            "fieldType": "date"
+          },
+          "deal_source_system": {
+            "type": "string",
+            "fieldType": "text"
+          }
+        }
+      },
+      "companies": {
+        "properties": {
+          "customer_tier": {
+            "type": "enumeration",
+            "fieldType": "select",
+            "options": [
+              "smb",
+              "growth",
+              "enterprise",
+              "strategic"
+            ]
+          },
+          "annual_contract_value": {
+            "type": "number",
+            "fieldType": "number"
+          },
+          "renewal_date": {
+            "type": "date",
+            "fieldType": "date"
+          }
+        }
+      }
+    }
+  },
+  "actual": {
+    "customObjectSchemas": {
+      "results": [
+        {
+          "id": "9900101",
+          "objectTypeId": "2-9900101",
+          "fullyQualifiedName": "p990_project",
+          "name": "project",
+          "labels": {
+            "singular": "Project",
+            "plural": "Projects"
+          },
+          "primaryDisplayProperty": "project_name",
+          "secondaryDisplayProperties": [
+            "project_stage"
+          ],
+          "requiredProperties": [
+            "project_name"
+          ],
+          "searchableProperties": [
+            "project_name",
+            "project_code"
+          ],
+          "archived": false,
+          "createdAt": "2025-03-04T09:00:00.000Z",
+          "_relative": {
+            "updatedHoursAgo": 20
+          },
+          "properties": [
+            {
+              "name": "hs_object_id",
+              "label": "Record ID",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_createdate",
+              "label": "Create date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_lastmodifieddate",
+              "label": "Last modified date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "project_name",
+              "label": "Project title",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 26
+              },
+              "updatedUserId": "71000001"
+            },
+            {
+              "name": "project_stage",
+              "label": "Project stage",
+              "type": "enumeration",
+              "fieldType": "select",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [
+                {
+                  "label": "Planning",
+                  "value": "planning",
+                  "displayOrder": 0,
+                  "hidden": false
+                },
+                {
+                  "label": "In Progress",
+                  "value": "in_progress",
+                  "displayOrder": 1,
+                  "hidden": false
+                },
+                {
+                  "label": "Completed",
+                  "value": "completed",
+                  "displayOrder": 2,
+                  "hidden": false
+                },
+                {
+                  "label": "Cancelled",
+                  "value": "cancelled",
+                  "displayOrder": 3,
+                  "hidden": false
+                }
+              ],
+              "_relative": {
+                "updatedHoursAgo": 20
+              },
+              "updatedUserId": "71000002"
+            },
+            {
+              "name": "budget_amount",
+              "label": "Budget amount",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 20
+              },
+              "updatedUserId": "71000002"
+            },
+            {
+              "name": "go_live_date",
+              "label": "Go-live date",
+              "type": "date",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "project_code",
+              "label": "Project code",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 20
+              },
+              "updatedUserId": "71000002"
+            },
+            {
+              "name": "health_score",
+              "label": "Health score",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "temp_import_batch",
+              "label": "Temp import batch",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 30
+              },
+              "updatedUserId": "71000003"
+            },
+            {
+              "name": "legacy_status_copy",
+              "label": "Legacy status (copy)",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 30
+              },
+              "updatedUserId": "71000003"
+            }
+          ],
+          "associations": [
+            {
+              "id": "901",
+              "fromObjectTypeId": "2-9900101",
+              "toObjectTypeId": "0-2",
+              "name": "project_to_company"
+            },
+            {
+              "id": "902",
+              "fromObjectTypeId": "2-9900101",
+              "toObjectTypeId": "0-1",
+              "name": "project_to_contact"
+            },
+            {
+              "id": "903",
+              "fromObjectTypeId": "2-9900101",
+              "toObjectTypeId": "0-3",
+              "name": "project_to_deal"
+            },
+            {
+              "id": "904",
+              "fromObjectTypeId": "2-9900101",
+              "toObjectTypeId": "0-5",
+              "name": "project_to_ticket"
+            }
+          ]
+        },
+        {
+          "id": "9900102",
+          "objectTypeId": "2-9900102",
+          "fullyQualifiedName": "p990_contract",
+          "name": "contract",
+          "labels": {
+            "singular": "Contract",
+            "plural": "Contracts"
+          },
+          "primaryDisplayProperty": "contract_title",
+          "secondaryDisplayProperties": [],
+          "requiredProperties": [
+            "contract_number",
+            "start_date",
+            "signed_by"
+          ],
+          "searchableProperties": [
+            "contract_number"
+          ],
+          "archived": false,
+          "createdAt": "2025-05-12T09:00:00.000Z",
+          "_relative": {
+            "updatedHoursAgo": 44
+          },
+          "properties": [
+            {
+              "name": "hs_object_id",
+              "label": "Record ID",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_createdate",
+              "label": "Create date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_lastmodifieddate",
+              "label": "Last modified date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "contract_number",
+              "label": "Contract number",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": true,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "contract_title",
+              "label": "Contract title",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "start_date",
+              "label": "Start date",
+              "type": "date",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "end_date",
+              "label": "End date",
+              "type": "date",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "contract_value",
+              "label": "Contract value",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": []
+            },
+            {
+              "name": "renewal_terms",
+              "label": "Renewal terms",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 44
+              },
+              "updatedUserId": "71000001"
+            },
+            {
+              "name": "termination_reason",
+              "label": "Termination reason",
+              "type": "enumeration",
+              "fieldType": "select",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [
+                {
+                  "label": "Non Payment",
+                  "value": "non_payment",
+                  "displayOrder": 0,
+                  "hidden": false
+                },
+                {
+                  "label": "Convenience",
+                  "value": "convenience",
+                  "displayOrder": 1,
+                  "hidden": false
+                },
+                {
+                  "label": "Breach",
+                  "value": "breach",
+                  "displayOrder": 2,
+                  "hidden": false
+                }
+              ],
+              "archived": true,
+              "_relative": {
+                "updatedHoursAgo": 44
+              },
+              "updatedUserId": "71000001"
+            },
+            {
+              "name": "signed_by",
+              "label": "Signed by",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 44
+              },
+              "updatedUserId": "71000001"
+            },
+            {
+              "name": "notes_misc",
+              "label": "Misc notes",
+              "type": "string",
+              "fieldType": "textarea",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 60
+              },
+              "updatedUserId": "71000003"
+            }
+          ],
+          "associations": [
+            {
+              "id": "911",
+              "fromObjectTypeId": "2-9900102",
+              "toObjectTypeId": "0-2",
+              "name": "contract_to_company"
+            },
+            {
+              "id": "912",
+              "fromObjectTypeId": "2-9900102",
+              "toObjectTypeId": "0-3",
+              "name": "contract_to_deal"
+            }
+          ]
+        },
+        {
+          "id": "9900103",
+          "objectTypeId": "2-9900103",
+          "fullyQualifiedName": "p990_vendor_scorecard",
+          "name": "vendor_scorecard",
+          "labels": {
+            "singular": "Vendor scorecard",
+            "plural": "Vendor scorecards"
+          },
+          "primaryDisplayProperty": "vendor_name",
+          "requiredProperties": [
+            "vendor_name"
+          ],
+          "searchableProperties": [],
+          "archived": false,
+          "createdAt": "2026-11-14T10:00:00.000Z",
+          "_relative": {
+            "updatedHoursAgo": 50
+          },
+          "properties": [
+            {
+              "name": "hs_object_id",
+              "label": "Record ID",
+              "type": "number",
+              "fieldType": "number",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_createdate",
+              "label": "Create date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "hs_lastmodifieddate",
+              "label": "Last modified date",
+              "type": "datetime",
+              "fieldType": "date",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": true,
+              "calculated": false,
+              "formField": false,
+              "options": []
+            },
+            {
+              "name": "vendor_name",
+              "label": "Vendor name",
+              "type": "string",
+              "fieldType": "text",
+              "groupName": "custom_information",
+              "description": "",
+              "hasUniqueValue": false,
+              "hidden": false,
+              "hubspotDefined": false,
+              "calculated": false,
+              "formField": true,
+              "options": [],
+              "_relative": {
+                "updatedHoursAgo": 50
+              },
+              "updatedUserId": "71000003"
+            }
+          ],
+          "associations": [
+            {
+              "id": "921",
+              "fromObjectTypeId": "2-9900103",
+              "toObjectTypeId": "0-2",
+              "name": "vendor_scorecard_to_company"
+            }
+          ]
+        }
+      ]
+    },
+    "standardObjectProperties": {
+      "deals": {
+        "results": [
+          {
+            "name": "dealname",
+            "label": "Deal name",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "amount",
+            "label": "Amount",
+            "type": "number",
+            "fieldType": "number",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "closedate",
+            "label": "Close date",
+            "type": "datetime",
+            "fieldType": "date",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "hs_object_id",
+            "label": "Record ID",
+            "type": "number",
+            "fieldType": "number",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "contract_tier",
+            "label": "Contract tier",
+            "type": "enumeration",
+            "fieldType": "select",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [
+              {
+                "label": "Standard",
+                "value": "standard",
+                "displayOrder": 0,
+                "hidden": false
+              },
+              {
+                "label": "Plus",
+                "value": "plus",
+                "displayOrder": 1,
+                "hidden": true
+              },
+              {
+                "label": "Enterprise",
+                "value": "enterprise",
+                "displayOrder": 2,
+                "hidden": false
+              }
+            ],
+            "_relative": {
+              "updatedHoursAgo": 70
+            },
+            "updatedUserId": "71000002"
+          },
+          {
+            "name": "renewal_date",
+            "label": "Renewal date",
+            "type": "date",
+            "fieldType": "date",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          },
+          {
+            "name": "deal_source_system",
+            "label": "Deal source system",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          },
+          {
+            "name": "q3_promo_code",
+            "label": "Q3 promo code",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 80
+            },
+            "updatedUserId": "71000003"
+          },
+          {
+            "name": "sdr_notes_tmp",
+            "label": "Sdr notes tmp",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 82
+            },
+            "updatedUserId": "71000003"
+          },
+          {
+            "name": "import_batch_id",
+            "label": "Import batch id",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 90
+            },
+            "updatedUserId": "71000003"
+          },
+          {
+            "name": "legacy_deal_owner",
+            "label": "Legacy deal owner",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 95
+            },
+            "updatedUserId": "71000003"
+          },
+          {
+            "name": "utm_campaign_copy",
+            "label": "Utm campaign copy",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 99
+            },
+            "updatedUserId": "71000003"
+          },
+          {
+            "name": "partner_referral_flag",
+            "label": "Partner referral flag",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [],
+            "_relative": {
+              "updatedHoursAgo": 101
+            },
+            "updatedUserId": "71000003"
+          }
+        ]
+      },
+      "companies": {
+        "results": [
+          {
+            "name": "name",
+            "label": "Company name",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "domain",
+            "label": "Company domain name",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": true,
+            "calculated": false,
+            "formField": false,
+            "options": []
+          },
+          {
+            "name": "customer_tier",
+            "label": "Customer tier",
+            "type": "enumeration",
+            "fieldType": "select",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": [
+              {
+                "label": "Smb",
+                "value": "smb",
+                "displayOrder": 0,
+                "hidden": false
+              },
+              {
+                "label": "Growth",
+                "value": "growth",
+                "displayOrder": 1,
+                "hidden": false
+              },
+              {
+                "label": "Enterprise",
+                "value": "enterprise",
+                "displayOrder": 2,
+                "hidden": false
+              },
+              {
+                "label": "Strategic",
+                "value": "strategic",
+                "displayOrder": 3,
+                "hidden": false
+              }
+            ]
+          },
+          {
+            "name": "annual_contract_value",
+            "label": "Annual contract value",
+            "type": "number",
+            "fieldType": "number",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          },
+          {
+            "name": "renewal_date",
+            "label": "Renewal date",
+            "type": "date",
+            "fieldType": "date",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          },
+          {
+            "name": "internal_region_code",
+            "label": "Internal region code",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          },
+          {
+            "name": "legacy_account_id",
+            "label": "Legacy account ID",
+            "type": "string",
+            "fieldType": "text",
+            "groupName": "custom_information",
+            "description": "",
+            "hasUniqueValue": false,
+            "hidden": false,
+            "hubspotDefined": false,
+            "calculated": false,
+            "formField": true,
+            "options": []
+          }
+        ]
+      }
+    }
+  }
+}
